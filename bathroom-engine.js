@@ -63,6 +63,11 @@
     var style = document.createElement('style');
     style.id = 'cew-engine-styles';
     style.textContent = [
+      // Guard first: a later class rule setting display: on a hidden element
+      // (e.g. .cew-result{display:grid}) otherwise silently wins over the
+      // hidden attribute's default, since they're equal specificity -- the
+      // !important here is what makes hidden actually stay hidden.
+      '.cew-wrap [hidden]{display:none!important;}',
       '.cew-wrap{max-width:36rem;margin:0 auto;padding:1.5rem 1rem;font-family:"Lato",-apple-system,"Segoe UI",sans-serif;}',
       '.cew{background:#ffffff;color:#101828;border-radius:12px;padding:1.9rem 1.7rem 1.7rem;box-shadow:0 12px 32px -20px rgba(16,24,40,.35);border:1px solid #EAEAEA;}',
       '.cew *{box-sizing:border-box;}',
