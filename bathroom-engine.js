@@ -101,6 +101,9 @@
       '.cew-band-label{font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;font-weight:700;margin-bottom:.3rem;}',
       '.cew-price{font-family:"Montserrat",sans-serif;font-size:clamp(1.8rem,1.3rem + 2vw,2.3rem);margin:0;font-weight:700;font-variant-numeric:tabular-nums;}',
       '.cew-blurb{font-size:.92rem;line-height:1.55;color:#4a5568;margin:.5rem 0 0;}',
+      '.cew-tier-heading{font-size:1rem;font-weight:700;margin:.9rem 0 0;}',
+      '.cew-tier-bullets{margin:.6rem 0 0;padding-left:1.2rem;font-size:.9rem;line-height:1.6;color:#4a5568;}',
+      '.cew-tier-bullets li{margin-bottom:.2rem;}',
       '.cew-callback-msg{font-size:.9rem;line-height:1.5;color:#1f5c33;background:#eafaf0;border:1px solid #b7e4c7;border-radius:8px;padding:.75rem .85rem;}',
       '.cew-msg{font-size:.85rem;line-height:1.5;border-radius:8px;padding:.65rem .8rem;}',
       '.cew-msg.cew-error{background:#fdecea;color:#a1362a;border:1px solid #f3c6c1;}'
@@ -228,7 +231,9 @@
 
     var bandLabel = el('div', { class: 'cew-band-label', style: 'color:' + cfg.colorAccent, html: 'Your price range' });
     var priceRange = el('p', { class: 'cew-price', style: 'color:' + cfg.colorDark, html: '$0 &ndash; $0' });
-    var blurb = el('p', { class: 'cew-blurb' });
+    var tierHeading = el('p', { class: 'cew-tier-heading', style: 'color:' + cfg.colorDark });
+    var tierIntro = el('p', { class: 'cew-blurb' });
+    var tierBullets = el('ul', { class: 'cew-tier-bullets' });
     var callbackMsg = el('div', { class: 'cew-callback-msg' }); callbackMsg.hidden = true;
     var callNowLink = el('a', {
       class: 'cew-cta-outline', href: '#',
@@ -240,7 +245,7 @@
     var resultMsg = el('div', { class: 'cew-msg' }); resultMsg.hidden = true;
 
     var result = el('div', { class: 'cew-result' }, [
-      el('div', {}, [bandLabel, priceRange, blurb]),
+      el('div', {}, [bandLabel, priceRange, tierHeading, tierIntro, tierBullets]),
       callbackMsg,
       callNowLink,
       resultMsg
@@ -274,9 +279,13 @@
       var score = computeScore();
       var tier = currentTier(score);
 
-      bandLabel.textContent = tier.label;
       priceRange.textContent = fmt(tier.low) + ' – ' + fmt(tier.high);
-      blurb.textContent = tier.blurb || '';
+      tierHeading.textContent = tier.heading || '';
+      tierIntro.textContent = tier.intro || '';
+      tierBullets.innerHTML = '';
+      (tier.bullets || []).forEach(function (b) {
+        tierBullets.appendChild(el('li', { html: b }));
+      });
       if (wantsCall) {
         callbackMsg.hidden = false;
         callbackMsg.textContent = 'Thanks, ' + firstVal + '! We’ll give you a call soon to talk through your project.';
