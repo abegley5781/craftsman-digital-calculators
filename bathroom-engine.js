@@ -214,6 +214,13 @@
     var email = el('input', { class: 'cew-lead-input', type: 'email', placeholder: 'Email' });
     var zip = el('input', { class: 'cew-lead-input', type: 'text', inputmode: 'numeric', maxlength: '5', placeholder: 'Postal Code' });
     var phoneInput = el('input', { class: 'cew-lead-input', type: 'tel', placeholder: 'Phone Number' });
+    // Honeypot: invisible to a real visitor, no label, no focus stop -- a script that
+    // blindly fills every input in the DOM will fill this too. Real users never will.
+    var honeypot = el('input', {
+      type: 'text', name: 'website', tabindex: '-1', autocomplete: 'off',
+      'aria-hidden': 'true',
+      style: 'position:absolute;left:-9999px;width:1px;height:1px;opacity:0;'
+    });
     var wantsCallBox = el('input', { type: 'checkbox' });
     var consentBox = el('input', { type: 'checkbox' });
     var consentRow = el('div', { class: 'cew-consent-row' }, [
@@ -254,7 +261,8 @@
       (function () { var w = el('div', { class: 'cew-field-wrap' }, [el('label', { style: 'color:' + cfg.colorDark, html: 'Phone Number *' }), phoneInput]); phoneWrap.innerHTML = ''; phoneWrap.appendChild(w); return phoneWrap; })(),
       consentRow,
       el('div', { class: 'cew-cta-row' }, [submitBtn]),
-      formMsg
+      formMsg,
+      honeypot
     ]);
 
     var bandLabel = el('div', { class: 'cew-band-label', style: 'color:' + cfg.colorAccent, html: 'Your price range' });
@@ -282,6 +290,13 @@
     result.hidden = true;
 
     submitBtn.addEventListener('click', function () {
+      if (honeypot.value) {
+        // Spam caught silently -- show the normal success screen so a script
+        // probing the form gets no signal it was caught, but nothing real sends.
+        form.hidden = true;
+        result.hidden = false;
+        return;
+      }
       var firstVal = firstName.value.trim();
       var lastVal = lastName.value.trim();
       var emailVal = email.value.trim();
