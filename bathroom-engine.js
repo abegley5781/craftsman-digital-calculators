@@ -18,8 +18,20 @@
  *   data-color-dark="{{ custom_values.calculator__brand_color_dark }}"
  *   data-color-accent="{{ custom_values.calculator__brand_color_accent }}"
  *   data-tiers='[{"max":8,"low":5000,"high":11000,"label":"...","blurb":"..."}, ...]'
+ *   data-zip-multipliers-url="https://abegley5781.github.io/craftsman-digital-calculators/co-zip-multipliers.json"
  * ></div>
  * <script src="https://abegley5781.github.io/craftsman-digital-calculators/bathroom-engine.js"></script>
+ *
+ * data-zip-multipliers-url is optional; defaults to the shared Colorado table
+ * below. It's a flat {"zip":multiplier} file, fetched once at page load (not
+ * at submit -- keeps the price reveal instant, no network wait). A ZIP not in
+ * the file gets no adjustment (1.0x), same as if the fetch hasn't finished or
+ * fails. Values are a ratio to the national median home value for that ZIP,
+ * rescaled and clamped to 0.7-1.5 -- see channel-b-finish-line.md A23 for the
+ * real formula and its known limits (e.g. small ZIPs Census suppresses
+ * entirely, ~12% of Colorado's). The engine itself applies only a wide safety
+ * clamp (0.5-2.0) against a corrupted file, not real business judgment --
+ * that judgment happens when the file's values get generated, not here.
  */
 (function () {
   var QUESTIONS = [
@@ -132,10 +144,21 @@
       colorPrimary: root.getAttribute('data-color-primary') || '#188bf6',
       colorDark: root.getAttribute('data-color-dark') || '#101828',
       colorAccent: root.getAttribute('data-color-accent') || '#3581ac',
-      tiers: []
+      tiers: [],
+      zipMultipliers: {}
     };
     try { cfg.tiers = JSON.parse(root.getAttribute('data-tiers') || '[]'); }
     catch (e) { console.error('bathroom-engine: invalid data-tiers JSON', e); }
+    var zipMultipliersUrl = root.getAttribute('data-zip-multipliers-url') ||
+      'https://abegley5781.github.io/craftsman-digital-calculators/co-zip-multipliers.json';
+    fetch(zipMultipliersUrl).then(function (res) {
+      if (!res.ok) throw new Error('bad status ' + res.status);
+      return res.json();
+    }).then(function (json) {
+      cfg.zipMultipliers = json || {};
+    }).catch(function (e) {
+      console.error('bathroom-engine: could not load zip multipliers, proceeding with no adjustment', e);
+    });
     if (!cfg.tiers.length) {
       root.innerHTML = '<p style="color:#a1362a">Calculator config missing (data-tiers). Contact support.</p>';
       return;
@@ -152,6 +175,11 @@
     function currentTier(score) {
       for (var i = 0; i < cfg.tiers.length; i++) { if (score <= cfg.tiers[i].max) return cfg.tiers[i]; }
       return cfg.tiers[cfg.tiers.length - 1];
+    }
+    function zipMultiplier(zipVal) {
+      var m = Number(cfg.zipMultipliers[zipVal]);
+      if (!m || isNaN(m)) return 1;
+      return Math.max(0.5, Math.min(2, m)); // wide safety clamp only -- see comment above
     }
     function computeScore() {
       return QUESTIONS.reduce(function (s, q) { return s + state[q.key]; }, 0);
@@ -231,6 +259,7 @@
 
     var bandLabel = el('div', { class: 'cew-band-label', style: 'color:' + cfg.colorAccent, html: 'Your price range' });
     var priceRange = el('p', { class: 'cew-price', style: 'color:' + cfg.colorDark, html: '$0 &ndash; $0' });
+    var zipNote = el('p', { class: 'cew-blurb', style: 'margin-top:.2rem' }); zipNote.hidden = true;
     var tierHeading = el('p', { class: 'cew-tier-heading', style: 'color:' + cfg.colorDark });
     var tierIntro = el('p', { class: 'cew-blurb' });
     var tierBullets = el('ul', { class: 'cew-tier-bullets' });
@@ -245,7 +274,7 @@
     var resultMsg = el('div', { class: 'cew-msg' }); resultMsg.hidden = true;
 
     var result = el('div', { class: 'cew-result' }, [
-      el('div', {}, [bandLabel, priceRange, tierHeading, tierIntro, tierBullets]),
+      el('div', {}, [bandLabel, priceRange, zipNote, tierHeading, tierIntro, tierBullets]),
       callbackMsg,
       callNowLink,
       resultMsg
@@ -278,8 +307,17 @@
 
       var score = computeScore();
       var tier = currentTier(score);
+      var mult = zipMultiplier(zipVal);
+      var adjLow = Math.round(tier.low * mult / 100) * 100;
+      var adjHigh = Math.round(tier.high * mult / 100) * 100;
 
-      priceRange.textContent = fmt(tier.low) + ' – ' + fmt(tier.high);
+      priceRange.textContent = fmt(adjLow) + ' – ' + fmt(adjHigh);
+      if (mult !== 1) {
+        zipNote.hidden = false;
+        zipNote.textContent = 'Adjusted for the ' + zipVal + ' area.';
+      } else {
+        zipNote.hidden = true;
+      }
       tierHeading.textContent = tier.heading || '';
       tierIntro.textContent = tier.intro || '';
       tierBullets.innerHTML = '';
@@ -297,8 +335,8 @@
 
       var payload = {
         first_name: firstVal, last_name: lastVal, email: emailVal, phone: phoneVal,
-        trade_config: 'bathroom', score: score, estimate_low: tier.low, estimate_high: tier.high,
-        tier_label: tier.label, zip: zipVal, price_adjustment_pct: 0,
+        trade_config: 'bathroom', score: score, estimate_low: adjLow, estimate_high: adjHigh,
+        tier_label: tier.label, zip: zipVal, price_adjustment_pct: Math.round((mult - 1) * 100),
         wants_call: wantsCall ? 'Yes' : 'No'
       };
 
