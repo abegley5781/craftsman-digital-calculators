@@ -112,6 +112,11 @@
       '.cew-result{display:grid;gap:1.1rem;}',
       '.cew-band-label{font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;font-weight:700;margin-bottom:.3rem;}',
       '.cew-price{font-family:"Montserrat",sans-serif;font-size:clamp(1.8rem,1.3rem + 2vw,2.3rem);margin:0;font-weight:700;font-variant-numeric:tabular-nums;}',
+      // Price scales with the result box so the widest range stays on one line on phones;
+      // if a very small screen still can't fit it, the nowrap spans make it break at the dash.
+      '.cew-result{container-type:inline-size;}',
+      '@supports (font-size:1cqi){.cew-price{font-size:clamp(1.4rem,9.4cqi,2.3rem);}}',
+      '.cew-nw{white-space:nowrap;}',
       '.cew-blurb{font-size:.92rem;line-height:1.55;color:#4a5568;margin:.5rem 0 0;}',
       '.cew-tier-heading{font-size:1rem;font-weight:700;margin:.9rem 0 0;}',
       '.cew-tier-bullets{margin:.6rem 0 0;padding-left:1.2rem;font-size:.9rem;line-height:1.6;color:#4a5568;}',
@@ -291,7 +296,7 @@
       var score = computeScore();
       var tier = currentTier(score);
 
-      priceRange.textContent = fmt(tier.low) + ' – ' + fmt(tier.high);
+      priceRange.innerHTML = '<span class="cew-nw">' + fmt(tier.low) + '</span> &ndash; <span class="cew-nw">' + fmt(tier.high) + '</span>';
       tierHeading.textContent = tier.heading || '';
       tierIntro.textContent = tier.intro || '';
       tierBullets.innerHTML = '';
