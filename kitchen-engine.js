@@ -315,6 +315,7 @@
       var payload = {
         first_name: firstVal, last_name: lastVal, email: emailVal, phone: phoneVal,
         trade_config: 'kitchen', score: score, estimate_low: tier.low, estimate_high: tier.high,
+        price_range: fmt(tier.low) + ' – ' + fmt(tier.high),
         tier_label: tier.label, zip: zipVal, price_adjustment_pct: 0,
         wants_call: wantsCall ? 'Yes' : 'No'
       };

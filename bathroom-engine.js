@@ -378,6 +378,7 @@
       var payload = {
         first_name: firstVal, last_name: lastVal, email: emailVal, phone: phoneVal,
         trade_config: 'bathroom', score: score, estimate_low: adjLow, estimate_high: adjHigh,
+        price_range: fmt(adjLow) + ' – ' + fmt(adjHigh),
         tier_label: currentScopeLabel(), zip: zipVal, price_adjustment_pct: Math.round((mult - 1) * 100),
         wants_call: wantsCall ? 'Yes' : 'No'
       };
