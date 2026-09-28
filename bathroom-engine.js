@@ -17,10 +17,20 @@
  *   data-color-primary="{{ custom_values.calculator__brand_color_primary }}"
  *   data-color-dark="{{ custom_values.calculator__brand_color_dark }}"
  *   data-color-accent="{{ custom_values.calculator__brand_color_accent }}"
- *   data-tiers='[{"max":8,"low":5000,"high":11000,"label":"...","blurb":"..."}, ...]'
+ *   data-tiers='[{"max":8,"low":5000,"high":11000}, ...]'
+ *   data-scope-copy='{"0":{"heading":"...","intro":"...","bullets":["...", ...]}, "5":{...}, "9":{...}}'
  *   data-zip-multipliers-url="https://abegley5781.github.io/craftsman-digital-calculators/co-zip-multipliers.json"
  * ></div>
  * <script src="https://abegley5781.github.io/craftsman-digital-calculators/bathroom-engine.js"></script>
+ *
+ * data-tiers drives price only now -- no heading/intro/bullets per band. The
+ * results screen's description text is a separate lookup, data-scope-copy,
+ * keyed by the literal "scope" question's value (0/5/9 = Refresh/Partial/Full
+ * gut), not the blended score -- so someone who picks Refresh never sees
+ * "near-full demolition" copy just because other answers pushed their score
+ * up. Price still uses the full blended score across all 9 tiers; multiple
+ * price tiers can share one scope-copy bucket (e.g. tiers 7-9 all show the
+ * "Full gut remodel" copy, at three different price ranges).
  *
  * data-zip-multipliers-url is optional; defaults to the shared Colorado table
  * below. It's a flat {"zip":multiplier} file, fetched once at page load (not
@@ -145,10 +155,13 @@
       colorDark: root.getAttribute('data-color-dark') || '#101828',
       colorAccent: root.getAttribute('data-color-accent') || '#3581ac',
       tiers: [],
+      scopeCopy: {},
       zipMultipliers: {}
     };
     try { cfg.tiers = JSON.parse(root.getAttribute('data-tiers') || '[]'); }
     catch (e) { console.error('bathroom-engine: invalid data-tiers JSON', e); }
+    try { cfg.scopeCopy = JSON.parse(root.getAttribute('data-scope-copy') || '{}'); }
+    catch (e) { console.error('bathroom-engine: invalid data-scope-copy JSON', e); }
     var zipMultipliersUrl = root.getAttribute('data-zip-multipliers-url') ||
       'https://abegley5781.github.io/craftsman-digital-calculators/co-zip-multipliers.json';
     fetch(zipMultipliersUrl).then(function (res) {
@@ -175,6 +188,14 @@
     function currentTier(score) {
       for (var i = 0; i < cfg.tiers.length; i++) { if (score <= cfg.tiers[i].max) return cfg.tiers[i]; }
       return cfg.tiers[cfg.tiers.length - 1];
+    }
+    function currentScopeCopy() {
+      return cfg.scopeCopy[String(state.scope)] || { heading: '', intro: '', bullets: [] };
+    }
+    function currentScopeLabel() {
+      var scopeQ = QUESTIONS.filter(function (q) { return q.key === 'scope'; })[0];
+      var opt = scopeQ.options.filter(function (o) { return o.value === state.scope; })[0];
+      return opt ? opt.label : '';
     }
     function zipMultiplier(zipVal) {
       var m = Number(cfg.zipMultipliers[zipVal]);
@@ -333,10 +354,11 @@
       } else {
         zipNote.hidden = true;
       }
-      tierHeading.textContent = tier.heading || '';
-      tierIntro.textContent = tier.intro || '';
+      var copy = currentScopeCopy();
+      tierHeading.textContent = copy.heading || '';
+      tierIntro.textContent = copy.intro || '';
       tierBullets.innerHTML = '';
-      (tier.bullets || []).forEach(function (b) {
+      (copy.bullets || []).forEach(function (b) {
         tierBullets.appendChild(el('li', { html: b }));
       });
       if (wantsCall) {
@@ -351,7 +373,7 @@
       var payload = {
         first_name: firstVal, last_name: lastVal, email: emailVal, phone: phoneVal,
         trade_config: 'bathroom', score: score, estimate_low: adjLow, estimate_high: adjHigh,
-        tier_label: tier.label, zip: zipVal, price_adjustment_pct: Math.round((mult - 1) * 100),
+        tier_label: currentScopeLabel(), zip: zipVal, price_adjustment_pct: Math.round((mult - 1) * 100),
         wants_call: wantsCall ? 'Yes' : 'No'
       };
 
