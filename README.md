@@ -64,7 +64,7 @@ pasting this snippet on its own page:
 
 **Pricing source:** unlike bathroom (which recovered real per-tier copy from
 CKB's own live form), no live kitchen reference form exists, so these tiers
-are grounded in Journal of Light Construction's 2026 Cost vs. Value report —
+are grounded in Journal of Light Construction's 2025 Cost vs. Value report —
 national averages, not CKB-specific quotes, per Andrew's explicit direction
 (2026-09-14: "national/industry numbers only. I used cost v value many times.
 I like it."):

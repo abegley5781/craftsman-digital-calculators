@@ -7,7 +7,7 @@
  * Unlike bathroom (which pulled real per-tier copy from CKB's own live
  * form), CKB has no live kitchen calculator to source from. Per Andrew's
  * direction 2026-09-14, pricing tiers below are grounded in Journal of
- * Light Construction's Cost vs. Value report (2026 national figures,
+ * Light Construction's Cost vs. Value report (2025 national figures,
  * cross-checked against a Colorado-market citation of the same report):
  *   - Minor Kitchen Remodel:            $28,458 national avg job cost
  *   - Major Kitchen Remodel (Midrange): $82,793 national avg job cost
