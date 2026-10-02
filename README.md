@@ -29,6 +29,12 @@ engine file itself — they measure the bathroom's own complexity, not anything
 specific to a business, so they don't change per client. What changes per client
 is `data-tiers` (their real pricing bands) and the custom values above.
 
+**Answers summary:** both engines show a "Based on: ..." line under the price
+range, built from the visitor's 6 answers, and send the same sentence in the
+webhook payload as `answers_summary`. To save it on the contact (and show it in
+Email 1), each client's GHL location needs one text custom field mapped to
+`answers_summary` in the lead-capture workflow's Create/Update Contact step.
+
 To update the calculator for every client at once, edit `bathroom-engine.js` and
 push — no per-client GHL edits needed. To onboard a new client, create their
 custom values in their own GHL location and paste the snippet above with their

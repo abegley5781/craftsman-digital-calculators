@@ -33,38 +33,44 @@
  *   data-tiers='[{"max":15,"low":18000,"high":35000,"label":"...","heading":"...","intro":"...","bullets":["..."]}, ...]'
  * ></div>
  * <script src="https://abegley5781.github.io/craftsman-digital-calculators/kitchen-engine.js"></script>
+ *
+ * Answers summary: same as bathroom -- a "Based on: ..." line under the range
+ * built from each option's "say" text, sent to GHL as answers_summary.
  */
 (function () {
+  // "say" is the plain-words version of each answer, used in the "Based on: ..."
+  // line on the results screen and sent to GHL as answers_summary. Keep each one
+  // in step with its label if a label ever changes.
   var QUESTIONS = [
     { key: 'size', label: 'How would you describe the size of the kitchen?', options: [
-      { label: 'Small / galley (under 100 sqft)', value: 8 },
-      { label: 'Medium / standard (100–200 sqft)', value: 12, def: true },
-      { label: 'Large / open-concept (200+ sqft)', value: 18 },
+      { label: 'Small / galley (under 100 sqft)', value: 8, say: 'a small or galley kitchen (under 100 sqft)' },
+      { label: 'Medium / standard (100–200 sqft)', value: 12, def: true, say: 'a medium kitchen (100–200 sqft)' },
+      { label: 'Large / open-concept (200+ sqft)', value: 18, say: 'a large or open-concept kitchen (200+ sqft)' },
     ]},
     { key: 'scope', label: 'What best describes the scope of your remodel?', options: [
-      { label: 'Cosmetic refresh (paint, hardware, keep cabinets & layout)', value: 0 },
-      { label: 'Reface & upgrade (new cabinet fronts or full cabinets, same layout)', value: 6, def: true },
-      { label: 'Full gut remodel (everything replaced)', value: 14 },
+      { label: 'Cosmetic refresh (paint, hardware, keep cabinets & layout)', value: 0, say: 'cosmetic refresh' },
+      { label: 'Reface & upgrade (new cabinet fronts or full cabinets, same layout)', value: 6, def: true, say: 'reface and upgrade' },
+      { label: 'Full gut remodel (everything replaced)', value: 14, say: 'full gut remodel' },
     ]},
     { key: 'cabinets', label: 'What level of cabinetry are you considering?', options: [
-      { label: 'Refinish or reface existing cabinet boxes', value: -2 },
-      { label: 'New stock or semi-custom cabinets', value: 0, def: true },
-      { label: 'Full custom cabinetry', value: 6 },
+      { label: 'Refinish or reface existing cabinet boxes', value: -2, say: 'refinished or refaced cabinets' },
+      { label: 'New stock or semi-custom cabinets', value: 0, def: true, say: 'new stock or semi-custom cabinets' },
+      { label: 'Full custom cabinetry', value: 6, say: 'full custom cabinets' },
     ]},
     { key: 'finish', label: 'What countertop / finish level are you aiming for?', options: [
-      { label: 'Laminate or butcher block', value: -2 },
-      { label: 'Quartz or granite (mid-range)', value: 0, def: true },
-      { label: 'Premium stone / high-end custom finishes', value: 5 },
+      { label: 'Laminate or butcher block', value: -2, say: 'laminate or butcher block counters' },
+      { label: 'Quartz or granite (mid-range)', value: 0, def: true, say: 'quartz or granite counters' },
+      { label: 'Premium stone / high-end custom finishes', value: 5, say: 'premium stone or high-end custom finishes' },
     ]},
     { key: 'layout', label: 'Will the layout, walls, or plumbing/electrical change?', options: [
-      { label: 'No / Not sure', value: 0, def: true },
-      { label: 'Move some plumbing or electrical, same footprint', value: 4 },
-      { label: 'Remove walls / full layout change', value: 9 },
+      { label: 'No / Not sure', value: 0, def: true, say: 'same layout with nothing moved' },
+      { label: 'Move some plumbing or electrical, same footprint', value: 4, say: 'some plumbing or wiring moved (same footprint)' },
+      { label: 'Remove walls / full layout change', value: 9, say: 'walls removed or full layout change' },
     ]},
     { key: 'year', label: 'When was your home built?', options: [
-      { label: '1990 or newer', value: 0 },
-      { label: '1970–1989', value: 1, def: true },
-      { label: 'Before 1970', value: 3 },
+      { label: '1990 or newer', value: 0, say: 'home built 1990 or newer' },
+      { label: '1970–1989', value: 1, def: true, say: 'home built 1970–1989' },
+      { label: 'Before 1970', value: 3, say: 'home built before 1970' },
     ]},
   ];
 
@@ -118,6 +124,9 @@
       '@supports (font-size:1cqi){.cew-price{font-size:clamp(1.4rem,9.4cqi,2.3rem);}}',
       '.cew-nw{white-space:nowrap;}',
       '.cew-blurb{font-size:.92rem;line-height:1.55;color:#4a5568;margin:.5rem 0 0;}',
+      // Two classes so a host page's own p{margin:0} reset can't squash the spacing.
+      '.cew-result .cew-answers{font-size:.88rem;line-height:1.5;color:#4a5568;margin:.4rem 0 .6rem;}',
+      '.cew-answers strong{font-weight:700;}',
       '.cew-tier-heading{font-size:1rem;font-weight:700;margin:.9rem 0 0;}',
       '.cew-tier-bullets{margin:.6rem 0 0;padding-left:1.2rem;font-size:.9rem;line-height:1.6;color:#4a5568;}',
       '.cew-tier-bullets li{margin-bottom:.2rem;}',
@@ -161,10 +170,18 @@
     injectStyles();
 
     var state = {};
+    var picked = {}; // index of the chosen option per question, for the answers summary
     QUESTIONS.forEach(function (q) {
       var d = q.options.filter(function (o) { return o.def; })[0] || q.options[0];
       state[q.key] = d.value;
+      picked[q.key] = q.options.indexOf(d);
     });
+    function answersList() {
+      return QUESTIONS.map(function (q) {
+        var o = q.options[picked[q.key]] || {};
+        return o.say || o.label || '';
+      }).filter(Boolean).join(', ');
+    }
 
     function currentTier(score) {
       for (var i = 0; i < cfg.tiers.length; i++) { if (score <= cfg.tiers[i].max) return cfg.tiers[i]; }
@@ -180,7 +197,7 @@
         el('div', { class: 'cew-brand', style: 'color:' + cfg.colorAccent, html: cfg.businessName }),
         el('div', { class: 'cew-name', style: 'color:' + cfg.colorDark, html: 'Kitchen Cost Calculator' })
       ]),
-      el('p', { class: 'cew-promise', style: 'color:' + cfg.colorPrimary, html: 'See your price range right here, instantly &mdash; we&rsquo;ll also send a copy to your email.' })
+      el('p', { class: 'cew-promise', style: 'color:' + cfg.colorPrimary, html: 'See your price range right here, instantly. We&rsquo;ll also email you a copy with your answers, so you can come back to it.' })
     ]);
 
     var qgrid = el('div', { class: 'cew-qgrid' });
@@ -191,7 +208,7 @@
         if (o.def) opt.selected = true;
         select.appendChild(opt);
       });
-      select.addEventListener('change', function (e) { state[q.key] = Number(e.target.value); });
+      select.addEventListener('change', function (e) { state[q.key] = Number(e.target.value); picked[q.key] = e.target.selectedIndex; });
       qgrid.appendChild(el('div', { class: 'cew-field' }, [
         el('label', { style: 'color:' + cfg.colorDark, html: q.label }),
         select
@@ -248,6 +265,7 @@
 
     var bandLabel = el('div', { class: 'cew-band-label', style: 'color:' + cfg.colorAccent, html: 'Your price range' });
     var priceRange = el('p', { class: 'cew-price', style: 'color:' + cfg.colorDark, html: '$0 &ndash; $0' });
+    var answersLine = el('p', { class: 'cew-answers' }); answersLine.hidden = true;
     var tierHeading = el('p', { class: 'cew-tier-heading', style: 'color:' + cfg.colorDark });
     var tierIntro = el('p', { class: 'cew-blurb' });
     var tierBullets = el('ul', { class: 'cew-tier-bullets' });
@@ -262,7 +280,7 @@
     var resultMsg = el('div', { class: 'cew-msg' }); resultMsg.hidden = true;
 
     var result = el('div', { class: 'cew-result' }, [
-      el('div', {}, [bandLabel, priceRange, tierHeading, tierIntro, tierBullets]),
+      el('div', {}, [bandLabel, priceRange, answersLine, tierHeading, tierIntro, tierBullets]),
       callbackMsg,
       callNowLink,
       resultMsg
@@ -297,6 +315,14 @@
       var tier = currentTier(score);
 
       priceRange.innerHTML = '<span class="cew-nw">' + fmt(tier.low) + '</span> &ndash; <span class="cew-nw">' + fmt(tier.high) + '</span>';
+      var answers = answersList();
+      var answersSummary = answers ? 'Based on: ' + answers + '.' : '';
+      answersLine.innerHTML = '';
+      if (answers) {
+        answersLine.appendChild(el('strong', { style: 'color:' + cfg.colorDark, html: 'Based on:' }));
+        answersLine.appendChild(document.createTextNode(' ' + answers + '.'));
+      }
+      answersLine.hidden = !answers;
       tierHeading.textContent = tier.heading || '';
       tierIntro.textContent = tier.intro || '';
       tierBullets.innerHTML = '';
@@ -317,7 +343,8 @@
         trade_config: 'kitchen', score: score, estimate_low: tier.low, estimate_high: tier.high,
         price_range: fmt(tier.low) + ' – ' + fmt(tier.high),
         tier_label: tier.label, zip: zipVal, price_adjustment_pct: 0,
-        wants_call: wantsCall ? 'Yes' : 'No'
+        wants_call: wantsCall ? 'Yes' : 'No',
+        answers_summary: answersSummary
       };
 
       if (cfg.webhookUrl) {

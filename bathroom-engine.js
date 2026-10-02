@@ -42,39 +42,48 @@
  * entirely, ~12% of Colorado's). The engine itself applies only a wide safety
  * clamp (0.5-2.0) against a corrupted file, not real business judgment --
  * that judgment happens when the file's values get generated, not here.
+ *
+ * Answers summary: the results screen shows a "Based on: ..." line under the
+ * range built from the visitor's 6 answers (each option's "say" text), and
+ * the webhook payload carries the same sentence as answers_summary. GHL needs
+ * a contact custom field mapped to answers_summary to save it; until then GHL
+ * ignores the extra field and every existing mapping keeps working.
  */
 (function () {
+  // "say" is the plain-words version of each answer, used in the "Based on: ..."
+  // line on the results screen and sent to GHL as answers_summary. Keep each one
+  // in step with its label if a label ever changes.
   var QUESTIONS = [
     { key: 'size', label: 'How would you describe the size of the bathroom?', options: [
-      { label: '25–50 sqft (Small/half bath)', value: 10 },
-      { label: '51–100 sqft (Medium/full bath)', value: 14, def: true },
-      { label: '101–150 sqft (Large/master bath)', value: 18 },
+      { label: '25–50 sqft (Small/half bath)', value: 10, say: 'a small bathroom (25–50 sqft)' },
+      { label: '51–100 sqft (Medium/full bath)', value: 14, def: true, say: 'a medium bathroom (51–100 sqft)' },
+      { label: '101–150 sqft (Large/master bath)', value: 18, say: 'a large bathroom (101–150 sqft)' },
     ]},
     { key: 'scope', label: 'What best describes the scope of your remodel?', options: [
-      { label: 'Refresh (fixtures, surfaces, minimal changes)', value: 0 },
-      { label: 'Partial remodel (new shower/tub, finishes)', value: 5, def: true },
-      { label: 'Full gut remodel (everything rebuilt)', value: 9 },
+      { label: 'Refresh (fixtures, surfaces, minimal changes)', value: 0, say: 'refresh of fixtures and surfaces' },
+      { label: 'Partial remodel (new shower/tub, finishes)', value: 5, def: true, say: 'partial remodel' },
+      { label: 'Full gut remodel (everything rebuilt)', value: 9, say: 'full gut remodel' },
     ]},
     { key: 'tile', label: 'What level of tile work or tub/shower?', options: [
-      { label: 'No tile (acrylic, solid surface panels)', value: -1 },
-      { label: 'Basic (tile surround or floor only)', value: 0, def: true },
-      { label: 'Full tile shower (walls + pan)', value: 2 },
-      { label: 'Extensive tile (shower, floor, walls, niches)', value: 4 },
+      { label: 'No tile (acrylic, solid surface panels)', value: -1, say: 'no tile (acrylic or solid surface panels)' },
+      { label: 'Basic (tile surround or floor only)', value: 0, def: true, say: 'basic tile (surround or floor only)' },
+      { label: 'Full tile shower (walls + pan)', value: 2, say: 'full tile shower (walls and pan)' },
+      { label: 'Extensive tile (shower, floor, walls, niches)', value: 4, say: 'extensive tile (shower, floor, walls, niches)' },
     ]},
     { key: 'finish', label: 'What finish level are you aiming for?', options: [
-      { label: 'Basic / budget-conscious', value: -1 },
-      { label: 'Mid-range', value: 0, def: true },
-      { label: 'Not sure yet', value: 1 },
-      { label: 'High-end / custom', value: 3 },
+      { label: 'Basic / budget-conscious', value: -1, say: 'basic finishes' },
+      { label: 'Mid-range', value: 0, def: true, say: 'mid-range finishes' },
+      { label: 'Not sure yet', value: 1, say: 'finishes not decided yet' },
+      { label: 'High-end / custom', value: 3, say: 'high-end or custom finishes' },
     ]},
     { key: 'layout', label: 'Will plumbing fixtures or walls be moved?', options: [
-      { label: 'No / Not sure', value: 0, def: true },
-      { label: 'Yes', value: 2 },
+      { label: 'No / Not sure', value: 0, def: true, say: 'no plumbing or walls moved' },
+      { label: 'Yes', value: 2, say: 'plumbing or walls moved' },
     ]},
     { key: 'year', label: 'When was your home built?', options: [
-      { label: '1990 or newer', value: 0 },
-      { label: '1970–1989', value: 1, def: true },
-      { label: 'Before 1970', value: 2 },
+      { label: '1990 or newer', value: 0, say: 'home built 1990 or newer' },
+      { label: '1970–1989', value: 1, def: true, say: 'home built 1970–1989' },
+      { label: 'Before 1970', value: 2, say: 'home built before 1970' },
     ]},
   ];
 
@@ -128,6 +137,9 @@
       '@supports (font-size:1cqi){.cew-price{font-size:clamp(1.4rem,9.4cqi,2.3rem);}}',
       '.cew-nw{white-space:nowrap;}',
       '.cew-blurb{font-size:.92rem;line-height:1.55;color:#4a5568;margin:.5rem 0 0;}',
+      // Two classes so a host page's own p{margin:0} reset can't squash the spacing.
+      '.cew-result .cew-answers{font-size:.88rem;line-height:1.5;color:#4a5568;margin:.4rem 0 .6rem;}',
+      '.cew-answers strong{font-weight:700;}',
       '.cew-tier-heading{font-size:1rem;font-weight:700;margin:.9rem 0 0;}',
       '.cew-tier-bullets{margin:.6rem 0 0;padding-left:1.2rem;font-size:.9rem;line-height:1.6;color:#4a5568;}',
       '.cew-tier-bullets li{margin-bottom:.2rem;}',
@@ -185,10 +197,18 @@
     injectStyles();
 
     var state = {};
+    var picked = {}; // index of the chosen option per question, for the answers summary
     QUESTIONS.forEach(function (q) {
       var d = q.options.filter(function (o) { return o.def; })[0] || q.options[0];
       state[q.key] = d.value;
+      picked[q.key] = q.options.indexOf(d);
     });
+    function answersList() {
+      return QUESTIONS.map(function (q) {
+        var o = q.options[picked[q.key]] || {};
+        return o.say || o.label || '';
+      }).filter(Boolean).join(', ');
+    }
 
     function currentTier(score) {
       for (var i = 0; i < cfg.tiers.length; i++) { if (score <= cfg.tiers[i].max) return cfg.tiers[i]; }
@@ -217,7 +237,7 @@
         el('div', { class: 'cew-brand', style: 'color:' + cfg.colorAccent, html: cfg.businessName }),
         el('div', { class: 'cew-name', style: 'color:' + cfg.colorDark, html: 'Bathroom Cost Calculator' })
       ]),
-      el('p', { class: 'cew-promise', style: 'color:' + cfg.colorPrimary, html: 'See your price range right here, instantly &mdash; we&rsquo;ll also send a copy to your email.' })
+      el('p', { class: 'cew-promise', style: 'color:' + cfg.colorPrimary, html: 'See your price range right here, instantly. We&rsquo;ll also email you a copy with your answers, so you can come back to it.' })
     ]);
 
     var qgrid = el('div', { class: 'cew-qgrid' });
@@ -228,7 +248,7 @@
         if (o.def) opt.selected = true;
         select.appendChild(opt);
       });
-      select.addEventListener('change', function (e) { state[q.key] = Number(e.target.value); });
+      select.addEventListener('change', function (e) { state[q.key] = Number(e.target.value); picked[q.key] = e.target.selectedIndex; });
       qgrid.appendChild(el('div', { class: 'cew-field' }, [
         el('label', { style: 'color:' + cfg.colorDark, html: q.label }),
         select
@@ -293,6 +313,7 @@
 
     var bandLabel = el('div', { class: 'cew-band-label', style: 'color:' + cfg.colorAccent, html: 'Your price range' });
     var priceRange = el('p', { class: 'cew-price', style: 'color:' + cfg.colorDark, html: '$0 &ndash; $0' });
+    var answersLine = el('p', { class: 'cew-answers' }); answersLine.hidden = true;
     var zipNote = el('p', { class: 'cew-blurb', style: 'margin-top:.2rem' }); zipNote.hidden = true;
     var tierHeading = el('p', { class: 'cew-tier-heading', style: 'color:' + cfg.colorDark });
     var tierIntro = el('p', { class: 'cew-blurb' });
@@ -308,7 +329,7 @@
     var resultMsg = el('div', { class: 'cew-msg' }); resultMsg.hidden = true;
 
     var result = el('div', { class: 'cew-result' }, [
-      el('div', {}, [bandLabel, priceRange, zipNote, tierHeading, tierIntro, tierBullets]),
+      el('div', {}, [bandLabel, priceRange, answersLine, zipNote, tierHeading, tierIntro, tierBullets]),
       callbackMsg,
       callNowLink,
       resultMsg
@@ -353,6 +374,14 @@
       var adjHigh = Math.round(tier.high * mult / 100) * 100;
 
       priceRange.innerHTML = '<span class="cew-nw">' + fmt(adjLow) + '</span> &ndash; <span class="cew-nw">' + fmt(adjHigh) + '</span>';
+      var answers = answersList();
+      var answersSummary = answers ? 'Based on: ' + answers + '.' : '';
+      answersLine.innerHTML = '';
+      if (answers) {
+        answersLine.appendChild(el('strong', { style: 'color:' + cfg.colorDark, html: 'Based on:' }));
+        answersLine.appendChild(document.createTextNode(' ' + answers + '.'));
+      }
+      answersLine.hidden = !answers;
       if (mult !== 1) {
         zipNote.hidden = false;
         zipNote.textContent = 'Adjusted for the ' + zipVal + ' area.';
@@ -380,7 +409,8 @@
         trade_config: 'bathroom', score: score, estimate_low: adjLow, estimate_high: adjHigh,
         price_range: fmt(adjLow) + ' – ' + fmt(adjHigh),
         tier_label: currentScopeLabel(), zip: zipVal, price_adjustment_pct: Math.round((mult - 1) * 100),
-        wants_call: wantsCall ? 'Yes' : 'No'
+        wants_call: wantsCall ? 'Yes' : 'No',
+        answers_summary: answersSummary
       };
 
       if (cfg.webhookUrl) {
