@@ -77,7 +77,7 @@
       { label: 'High-end / custom', value: 3, say: 'high-end or custom finishes' },
     ]},
     { key: 'layout', label: 'Will plumbing fixtures or walls be moved?', options: [
-      { label: 'No / Not sure', value: 0, def: true, say: 'no plumbing or walls moved' },
+      { label: 'No / Not sure', value: 0, def: true, say: 'no plumbing or wall moves (or not sure yet)' },
       { label: 'Yes', value: 2, say: 'plumbing or walls moved' },
     ]},
     { key: 'year', label: 'When was your home built?', options: [

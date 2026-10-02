@@ -63,7 +63,7 @@
       { label: 'Premium stone / high-end custom finishes', value: 5, say: 'premium stone or high-end custom finishes' },
     ]},
     { key: 'layout', label: 'Will the layout, walls, or plumbing/electrical change?', options: [
-      { label: 'No / Not sure', value: 0, def: true, say: 'same layout with nothing moved' },
+      { label: 'No / Not sure', value: 0, def: true, say: 'same layout (or not sure yet)' },
       { label: 'Move some plumbing or electrical, same footprint', value: 4, say: 'some plumbing or wiring moved (same footprint)' },
       { label: 'Remove walls / full layout change', value: 9, say: 'walls removed or full layout change' },
     ]},
