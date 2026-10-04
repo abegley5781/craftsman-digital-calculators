@@ -108,6 +108,31 @@
   }
   function fmtPct(n) { return (n > 0 ? '+' : '') + n + '%'; }
 
+  // Lead source tag, e.g. ?ref=demo. Read from this page's address, else from
+  // the same-site page the visitor clicked through from (a hub page opened with
+  // ?ref=...), else from earlier in this visit. Letters, digits, - and _ only,
+  // max 40 characters; '' when there is none. Sent as `ref` in the payload.
+  function leadRef() {
+    function pick(url) {
+      var m = /[?&]ref=([^&#]*)/.exec(url || '');
+      if (!m) return '';
+      var v = m[1];
+      try { v = decodeURIComponent(v.replace(/\+/g, ' ')); } catch (e) {}
+      return v.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40);
+    }
+    var ref = pick(window.location.search);
+    if (!ref) {
+      var from = document.referrer || '';
+      var site = window.location.protocol + '//' + window.location.host + '/';
+      if (from.indexOf(site) === 0) ref = pick(from);
+    }
+    try {
+      if (ref) window.sessionStorage.setItem('cd_ref', ref);
+      else ref = window.sessionStorage.getItem('cd_ref') || '';
+    } catch (e) {}
+    return ref;
+  }
+
   function injectStyles() {
     if (document.getElementById('cew-engine-styles')) return;
     var style = document.createElement('style');
@@ -201,6 +226,7 @@
       colorAccent: root.getAttribute('data-color-accent') || '#3581ac',
       priceAdjustment: parseAdjustment(root.getAttribute('data-price-adjustment')),
       preview: String(root.getAttribute('data-mode') || '').trim().toLowerCase() === 'preview',
+      ref: leadRef(),
       tiers: []
     };
     // Belt and braces: preview mode never builds the form or submit handler,
@@ -485,7 +511,8 @@
         tier_label: tier.label, zip: zipVal, price_adjustment_pct: 0,
         wants_call: wantsCall ? 'Yes' : 'No',
         answers_summary: answersSummary,
-        client_adjustment_pct: adjustmentPct
+        client_adjustment_pct: adjustmentPct,
+        ref: cfg.ref
       };
 
       if (cfg.webhookUrl) {
