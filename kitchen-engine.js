@@ -143,13 +143,15 @@
       // hidden attribute's default, since they're equal specificity -- the
       // !important here is what makes hidden actually stay hidden.
       '.cew-wrap [hidden]{display:none!important;}',
-      '.cew-wrap{max-width:36rem;margin:0 auto;padding:1.5rem 1rem;font-family:"Lato",-apple-system,"Segoe UI",sans-serif;}',
+      '.cew-wrap{max-width:36rem;margin:0 auto;padding:1.5rem 1rem;font-family:"Lato",-apple-system,"Segoe UI",sans-serif;--cew-tint:#f3f8fb;--cew-line:#d7e8f5;}',
+      // Tints follow the client's primary color; browsers without color-mix keep the light-blue defaults above.
+      '@supports (color:color-mix(in srgb,red,blue)){.cew-wrap{--cew-tint:color-mix(in srgb,var(--cew-primary,#188bf6) 6%,#fff);--cew-line:color-mix(in srgb,var(--cew-primary,#188bf6) 14%,#fff);}}',
       '.cew{background:#ffffff;color:#101828;border-radius:12px;padding:1.9rem 1.7rem 1.7rem;box-shadow:0 12px 32px -20px rgba(16,24,40,.35);border:1px solid #EAEAEA;}',
       '.cew *{box-sizing:border-box;}',
       '.cew-top{margin-bottom:1.2rem;}',
       '.cew-brand{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;font-weight:700;}',
       '.cew-name{font-family:"Montserrat",sans-serif;font-size:1.35rem;font-weight:700;margin-top:.2rem;}',
-      '.cew-promise{font-size:.82rem;font-weight:700;text-align:center;background:#f3f8fb;border:1px solid #d7e8f5;border-radius:8px;padding:.6rem .8rem;margin:0 0 1.2rem;}',
+      '.cew-promise{font-size:.82rem;font-weight:700;text-align:center;background:var(--cew-tint);border:1px solid var(--cew-line);border-radius:8px;padding:.6rem .8rem;margin:0 0 1.2rem;}',
       '.cew-qgrid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:1.1rem 0 1.3rem;}',
       '@media (max-width:420px){.cew-qgrid{grid-template-columns:1fr;}.cew-lead-fields{grid-template-columns:1fr;}}',
       '.cew-field label,.cew-field-wrap label{display:block;font-size:.78rem;font-weight:700;margin-bottom:.35rem;line-height:1.3;}',
@@ -171,7 +173,7 @@
       '.cew-cta{font:inherit;font-weight:700;font-size:.95rem;color:#ffffff;border:none;border-radius:8px;padding:.85rem 1.3rem;cursor:pointer;width:100%;}',
       '.cew-cta:disabled{opacity:.6;cursor:default;}',
       '.cew-cta-outline{font:inherit;font-weight:700;font-size:.9rem;background:#fff;border-width:2px;border-style:solid;border-radius:8px;padding:.75rem 1.3rem;cursor:pointer;width:100%;text-align:center;text-decoration:none;display:block;}',
-      '.cew-cta-outline:hover{background:#f3f8fb;}',
+      '.cew-cta-outline:hover{background:var(--cew-tint);}',
       '.cew-result{display:grid;gap:1.1rem;}',
       '.cew-band-label{font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;font-weight:700;margin-bottom:.3rem;}',
       '.cew-price{font-family:"Montserrat",sans-serif;font-size:clamp(1.8rem,1.3rem + 2vw,2.3rem);margin:0;font-weight:700;font-variant-numeric:tabular-nums;}',
@@ -198,7 +200,7 @@
       '.cew-range-ends{display:flex;justify-content:space-between;font-size:.72rem;color:#6b7785;}',
       '.cew-hint{font-size:.78rem;line-height:1.4;color:#6b7785;margin:.35rem 0 0;}',
       '.cew-preview-empty{font-size:.92rem;color:#4a5568;margin:0;}',
-      '.cew-setting{font-size:.9rem;font-weight:700;background:#f3f8fb;border:1px solid #d7e8f5;border-radius:8px;padding:.6rem .8rem;margin:0;}'
+      '.cew-setting{font-size:.9rem;font-weight:700;background:var(--cew-tint);border:1px solid var(--cew-line);border-radius:8px;padding:.6rem .8rem;margin:0;}'
     ].join('\n');
     document.head.appendChild(style);
   }
@@ -282,7 +284,9 @@
       };
     }
 
-    var wrap = el('div', { class: 'cew-wrap' });
+    // Only a real color reaches the tints; anything else (e.g. "dark green" typed as text) falls back to the default blue.
+    var tintOk = window.CSS && CSS.supports && CSS.supports('color', cfg.colorPrimary);
+    var wrap = el('div', { class: 'cew-wrap', style: tintOk ? '--cew-primary:' + cfg.colorPrimary : '' });
     var card = el('div', { class: 'cew' }, [
       el('div', { class: 'cew-top' }, [
         el('div', { class: 'cew-brand', style: 'color:' + cfg.colorAccent, html: cfg.businessName }),
