@@ -29,6 +29,14 @@ engine file itself — they measure the bathroom's own complexity, not anything
 specific to a business, so they don't change per client. What changes per client
 is `data-tiers` (their real pricing bands) and the custom values above.
 
+**Start time and required answers (2026-10-06):** both engines add a 7th
+question, "When are you hoping to start?" (As soon as possible / In the next 1
+to 3 months / 3 to 6 months out / Just planning for now). It doesn't change the
+price and isn't in the "Based on" line; it is sent as `start_timeframe`. Every
+question now starts blank ("Pick one") and must be answered before the price
+shows; a missed one gets a red border and a message. Preview mode shows the
+price once the 6 price questions are answered.
+
 **Answers summary:** both engines show a "Based on: ..." line under the price
 range, built from the visitor's 6 answers, and send the same sentence in the
 webhook payload as `answers_summary`. To save it on the contact (and show it in

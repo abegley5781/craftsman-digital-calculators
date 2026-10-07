@@ -111,6 +111,14 @@
       { label: '1970–1989', value: 1, def: true, say: 'home built 1970–1989' },
       { label: 'Before 1970', value: 2, say: 'home built before 1970' },
     ]},
+    // When they hope to start. Doesn't change the price and isn't in the
+    // "Based on" line; it goes to the owner as start_timeframe.
+    { key: 'start', label: 'When are you hoping to start?', price: false, options: [
+      { label: 'As soon as possible', value: 0, say: 'as soon as possible' },
+      { label: 'In the next 1 to 3 months', value: 0, say: 'in the next 1 to 3 months' },
+      { label: '3 to 6 months out', value: 0, say: '3 to 6 months out' },
+      { label: 'Just planning for now', value: 0, say: 'just planning for now' },
+    ]},
   ];
 
   function fmt(n) { return '$' + Math.round(n).toLocaleString('en-US'); }
@@ -172,6 +180,7 @@
       '@media (max-width:420px){.cew-qgrid{grid-template-columns:1fr;}.cew-lead-fields{grid-template-columns:1fr;}}',
       '.cew-field label,.cew-field-wrap label{display:block;font-size:.78rem;font-weight:700;margin-bottom:.35rem;line-height:1.3;}',
       '.cew-field select{width:100%;font:inherit;font-size:.9rem;color:#101828;background:#fff;border:1px solid #cbd5e0;border-radius:8px;padding:.6rem .65rem;}',
+      '.cew-field select.cew-err{border-color:#e25950;}',
       '.cew-section-label{font-size:.85rem;font-weight:700;margin:0 0 .8rem;padding-top:1.1rem;border-top:1px solid #EAEAEA;}',
       '.cew-lead-fields{display:grid;grid-template-columns:1fr 1fr;gap:.7rem;margin-bottom:.7rem;}',
       '.cew-lead-input{font:inherit;font-size:.9rem;color:#101828;width:100%;background:#fff;border:1px solid #cbd5e0;border-radius:8px;padding:.6rem .65rem;}',
@@ -278,14 +287,20 @@
     var state = {};
     var picked = {}; // index of the chosen option per question, for the answers summary
     QUESTIONS.forEach(function (q) {
-      var d = q.options.filter(function (o) { return o.def; })[0] || q.options[0];
-      state[q.key] = d.value;
-      picked[q.key] = q.options.indexOf(d);
+      // Every question starts blank and has to be picked (Andrew, 2026-10-06),
+      // so each answer is a real choice. The `def` marks show the old defaults.
+      state[q.key] = NaN;
+      picked[q.key] = -1;
     });
     // Price / quality lean from the visitor's own picks, for the owner's alert
     // only (never shown to the homeowner). A guess: basic picks can mean a
     // tight budget, not that price matters most. Time can't be read from the
     // answers, so the owner asks about it on the call.
+    function startTimeframe() {
+      var q = QUESTIONS.filter(function (x) { return x.key === 'start'; })[0];
+      var o = q ? q.options[picked.start] : null;
+      return o ? o.label : '';
+    }
     function priorityLean() {
       var price = [], quality = [];
       QUESTIONS.forEach(function (q) {
@@ -298,7 +313,7 @@
       return 'No clear lean';
     }
     function answersList() {
-      return QUESTIONS.map(function (q) {
+      return QUESTIONS.filter(function (q) { return q.price !== false; }).map(function (q) {
         var o = q.options[picked[q.key]] || {};
         return o.say || o.label || '';
       }).filter(Boolean).join(', ');
@@ -325,7 +340,7 @@
       return QUESTIONS.reduce(function (s, q) { return s + state[q.key]; }, 0);
     }
     function answersComplete() {
-      return QUESTIONS.every(function (q) { return typeof state[q.key] === 'number' && !isNaN(state[q.key]); });
+      return QUESTIONS.every(function (q) { return q.price === false || (typeof state[q.key] === 'number' && !isNaN(state[q.key])); });
     }
 
     // Client price adjustment in percent: fixed from data-price-adjustment in
@@ -356,14 +371,18 @@
     ]);
 
     var qgrid = el('div', { class: 'cew-qgrid' });
+    var selects = {};
     QUESTIONS.forEach(function (q) {
       var select = el('select');
+      var blank = el('option', { value: '', html: 'Pick one' });
+      blank.disabled = true; blank.selected = true;
+      select.appendChild(blank);
+      selects[q.key] = select;
       q.options.forEach(function (o) {
         var opt = el('option', { value: o.value, html: o.label });
-        if (o.def) opt.selected = true;
         select.appendChild(opt);
       });
-      select.addEventListener('change', function (e) { state[q.key] = Number(e.target.value); picked[q.key] = e.target.selectedIndex; });
+      select.addEventListener('change', function (e) { state[q.key] = Number(e.target.value); picked[q.key] = e.target.selectedIndex - 1; select.classList.remove('cew-err'); });
       qgrid.appendChild(el('div', { class: 'cew-field' }, [
         el('label', { style: 'color:' + cfg.colorDark, html: q.label }),
         select
@@ -584,6 +603,12 @@
       zip.classList.toggle('cew-err', !zipOk);
       phoneInput.classList.toggle('cew-err', wantsCall && !phoneVal);
       consentRow.classList.toggle('cew-err', !consentBox.checked);
+      var unanswered = QUESTIONS.filter(function (q) { return isNaN(state[q.key]); });
+      QUESTIONS.forEach(function (q) { selects[q.key].classList.toggle('cew-err', isNaN(state[q.key])); });
+      if (unanswered.length) {
+        setFormMsg('Please answer every question above so we can price your project.');
+        return;
+      }
 
       if (!firstVal || !lastVal || !emailOk || !zipOk) {
         setFormMsg('Please fill in your first name, last name, a valid email, and your postal code.');
@@ -615,6 +640,7 @@
         wants_call: wantsCall ? 'Yes' : 'No',
         answers_summary: answersSummary,
         priority_lean: priorityLean(),
+        start_timeframe: startTimeframe(),
         client_adjustment_pct: adjustmentPct,
         ref: cfg.ref
       };
