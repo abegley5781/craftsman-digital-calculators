@@ -64,6 +64,10 @@
   // "say" is the plain-words version of each answer, used in the "Based on: ..."
   // line on the results screen and sent to GHL as answers_summary. Keep each one
   // in step with its label if a label ever changes.
+  // Shown under the range on the results screen. A page can replace it with
+  // data-expectation-note="..." or hide it with data-expectation-note="".
+  var DEFAULT_EXPECTATION_NOTE = 'Every remodel is a trade between three things: the price, how fast it gets done, and the quality of the work. You can usually have two of the three. When you talk with us, tell us which one matters most to you.';
+
   var QUESTIONS = [
     { key: 'size', label: 'How would you describe the size of the kitchen?', options: [
       { label: 'Small / galley (under 100 sqft)', value: 8, say: 'a small or galley kitchen (under 100 sqft)' },
@@ -76,14 +80,14 @@
       { label: 'Full gut remodel (everything replaced)', value: 14, say: 'full gut remodel' },
     ]},
     { key: 'cabinets', label: 'What level of cabinetry are you considering?', options: [
-      { label: 'Refinish or reface existing cabinet boxes', value: -2, say: 'refinished or refaced cabinets' },
+      { label: 'Refinish or reface existing cabinet boxes', value: -2, say: 'refinished or refaced cabinets', lean: 'price' },
       { label: 'New stock or semi-custom cabinets', value: 0, def: true, say: 'new stock or semi-custom cabinets' },
-      { label: 'Full custom cabinetry', value: 6, say: 'full custom cabinets' },
+      { label: 'Full custom cabinetry', value: 6, say: 'full custom cabinets', lean: 'quality' },
     ]},
     { key: 'finish', label: 'What countertop / finish level are you aiming for?', options: [
-      { label: 'Laminate or butcher block', value: -2, say: 'laminate or butcher block counters' },
+      { label: 'Laminate or butcher block', value: -2, say: 'laminate or butcher block counters', lean: 'price' },
       { label: 'Quartz or granite (mid-range)', value: 0, def: true, say: 'quartz or granite counters' },
-      { label: 'Premium stone / high-end custom finishes', value: 5, say: 'premium stone or high-end custom finishes' },
+      { label: 'Premium stone / high-end custom finishes', value: 5, say: 'premium stone or high-end custom finishes', lean: 'quality' },
     ]},
     { key: 'layout', label: 'Will the layout, walls, or plumbing/electrical change?', options: [
       { label: 'No / Not sure', value: 0, def: true, say: 'same layout (or not sure yet)' },
@@ -189,6 +193,7 @@
       '.cew-tier-heading{font-size:1rem;font-weight:700;margin:.9rem 0 0;}',
       '.cew-tier-bullets{margin:.6rem 0 0;padding-left:1.2rem;font-size:.9rem;line-height:1.6;color:#4a5568;}',
       '.cew-tier-bullets li{margin-bottom:.2rem;}',
+      '.cew-expect{margin:.9rem 0 0;padding:.1rem 0 .1rem .75rem;border-left:3px solid #188bf6;font-size:1rem;line-height:1.6;color:#4a5568;}',
       '.cew-callback-msg{font-size:.9rem;line-height:1.5;color:#1f5c33;background:#eafaf0;border:1px solid #b7e4c7;border-radius:8px;padding:.75rem .85rem;}',
       '.cew-msg{font-size:.85rem;line-height:1.5;border-radius:8px;padding:.65rem .8rem;}',
       '.cew-msg.cew-error{background:#fdecea;color:#a1362a;border:1px solid #f3c6c1;}',
@@ -229,7 +234,8 @@
       priceAdjustment: parseAdjustment(root.getAttribute('data-price-adjustment')),
       preview: String(root.getAttribute('data-mode') || '').trim().toLowerCase() === 'preview',
       ref: leadRef(),
-      tiers: []
+      tiers: [],
+      expectationNote: root.hasAttribute('data-expectation-note') ? root.getAttribute('data-expectation-note') : DEFAULT_EXPECTATION_NOTE
     };
     // Belt and braces: preview mode never builds the form or submit handler,
     // and also has no webhook URL to post to.
@@ -250,6 +256,21 @@
       state[q.key] = d.value;
       picked[q.key] = q.options.indexOf(d);
     });
+    // Price / quality lean from the visitor's own picks, for the owner's alert
+    // only (never shown to the homeowner). A guess: basic picks can mean a
+    // tight budget, not that price matters most. Time can't be read from the
+    // answers, so the owner asks about it on the call.
+    function priorityLean() {
+      var price = [], quality = [];
+      QUESTIONS.forEach(function (q) {
+        var o = q.options[picked[q.key]] || {};
+        if (o.lean === 'price') price.push(o.say);
+        if (o.lean === 'quality') quality.push(o.say);
+      });
+      if (price.length > quality.length) return 'Leans price (' + price.join(', ') + ')';
+      if (quality.length > price.length) return 'Leans quality (' + quality.join(', ') + ')';
+      return 'No clear lean';
+    }
     function answersList() {
       return QUESTIONS.map(function (q) {
         var o = q.options[picked[q.key]] || {};
@@ -320,6 +341,9 @@
     var tierHeading = el('p', { class: 'cew-tier-heading', style: 'color:' + cfg.colorDark });
     var tierIntro = el('p', { class: 'cew-blurb' });
     var tierBullets = el('ul', { class: 'cew-tier-bullets' });
+    var expectNote = el('p', { class: 'cew-expect', style: 'border-left-color:' + cfg.colorPrimary });
+    expectNote.textContent = cfg.expectationNote || '';
+    expectNote.hidden = !String(cfg.expectationNote || '').trim();
 
     // Fills the price display (range, "Based on: ..." line, tier copy) for the
     // current answers, and returns the same numbers and answers sentence so
@@ -363,7 +387,7 @@
       var settingLine = el('p', { class: 'cew-setting', style: 'color:' + cfg.colorDark });
       var emptyMsg = el('p', { class: 'cew-preview-empty', html: 'Pick your answers to see the price.' });
       var previewResult = el('div', { class: 'cew-result' }, [
-        el('div', {}, [bandLabel, priceRange, answersLine, tierHeading, tierIntro, tierBullets]),
+        el('div', {}, [bandLabel, priceRange, answersLine, tierHeading, tierIntro, tierBullets, expectNote]),
         settingLine
       ]);
       var controls = el('div', { class: 'cew-preview-controls' }, [
@@ -464,7 +488,7 @@
     var resultMsg = el('div', { class: 'cew-msg' }); resultMsg.hidden = true;
 
     var result = el('div', { class: 'cew-result' }, [
-      el('div', {}, [bandLabel, priceRange, answersLine, tierHeading, tierIntro, tierBullets]),
+      el('div', {}, [bandLabel, priceRange, answersLine, tierHeading, tierIntro, tierBullets, expectNote]),
       callbackMsg,
       callNowLink,
       resultMsg
@@ -515,6 +539,7 @@
         tier_label: tier.label, zip: zipVal, price_adjustment_pct: 0,
         wants_call: wantsCall ? 'Yes' : 'No',
         answers_summary: answersSummary,
+        priority_lean: priorityLean(),
         client_adjustment_pct: adjustmentPct,
         ref: cfg.ref
       };

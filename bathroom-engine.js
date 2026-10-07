@@ -75,6 +75,10 @@
   // "say" is the plain-words version of each answer, used in the "Based on: ..."
   // line on the results screen and sent to GHL as answers_summary. Keep each one
   // in step with its label if a label ever changes.
+  // Shown under the range on the results screen. A page can replace it with
+  // data-expectation-note="..." or hide it with data-expectation-note="".
+  var DEFAULT_EXPECTATION_NOTE = 'Every remodel is a trade between three things: the price, how fast it gets done, and the quality of the work. You can usually have two of the three. When you talk with us, tell us which one matters most to you.';
+
   var QUESTIONS = [
     { key: 'size', label: 'How would you describe the size of the bathroom?', options: [
       { label: '25–50 sqft (Small/half bath)', value: 10, say: 'a small bathroom (25–50 sqft)' },
@@ -87,16 +91,16 @@
       { label: 'Full gut remodel (everything rebuilt)', value: 9, say: 'full gut remodel' },
     ]},
     { key: 'tile', label: 'What level of tile work or tub/shower?', options: [
-      { label: 'No tile (acrylic, solid surface panels)', value: -1, say: 'no tile (acrylic or solid surface panels)' },
+      { label: 'No tile (acrylic, solid surface panels)', value: -1, say: 'no tile (acrylic or solid surface panels)', lean: 'price' },
       { label: 'Basic (tile surround or floor only)', value: 0, def: true, say: 'basic tile (surround or floor only)' },
       { label: 'Full tile shower (walls + pan)', value: 2, say: 'full tile shower (walls and pan)' },
-      { label: 'Extensive tile (shower, floor, walls, niches)', value: 4, say: 'extensive tile (shower, floor, walls, niches)' },
+      { label: 'Extensive tile (shower, floor, walls, niches)', value: 4, say: 'extensive tile (shower, floor, walls, niches)', lean: 'quality' },
     ]},
     { key: 'finish', label: 'What finish level are you aiming for?', options: [
-      { label: 'Basic / budget-conscious', value: -1, say: 'basic finishes' },
+      { label: 'Basic / budget-conscious', value: -1, say: 'basic finishes', lean: 'price' },
       { label: 'Mid-range', value: 0, def: true, say: 'mid-range finishes' },
       { label: 'Not sure yet', value: 1, say: 'finishes not decided yet' },
-      { label: 'High-end / custom', value: 3, say: 'high-end or custom finishes' },
+      { label: 'High-end / custom', value: 3, say: 'high-end or custom finishes', lean: 'quality' },
     ]},
     { key: 'layout', label: 'Will plumbing fixtures or walls be moved?', options: [
       { label: 'No / Not sure', value: 0, def: true, say: 'no plumbing or wall moves (or not sure yet)' },
@@ -201,6 +205,7 @@
       '.cew-tier-heading{font-size:1rem;font-weight:700;margin:.9rem 0 0;}',
       '.cew-tier-bullets{margin:.6rem 0 0;padding-left:1.2rem;font-size:.9rem;line-height:1.6;color:#4a5568;}',
       '.cew-tier-bullets li{margin-bottom:.2rem;}',
+      '.cew-expect{margin:.9rem 0 0;padding:.1rem 0 .1rem .75rem;border-left:3px solid #188bf6;font-size:1rem;line-height:1.6;color:#4a5568;}',
       '.cew-callback-msg{font-size:.9rem;line-height:1.5;color:#1f5c33;background:#eafaf0;border:1px solid #b7e4c7;border-radius:8px;padding:.75rem .85rem;}',
       '.cew-msg{font-size:.85rem;line-height:1.5;border-radius:8px;padding:.65rem .8rem;}',
       '.cew-msg.cew-error{background:#fdecea;color:#a1362a;border:1px solid #f3c6c1;}',
@@ -243,7 +248,8 @@
       ref: leadRef(),
       tiers: [],
       scopeCopy: {},
-      zipMultipliers: {}
+      zipMultipliers: {},
+      expectationNote: root.hasAttribute('data-expectation-note') ? root.getAttribute('data-expectation-note') : DEFAULT_EXPECTATION_NOTE
     };
     // Belt and braces: preview mode never builds the form or submit handler,
     // and also has no webhook URL to post to.
@@ -276,6 +282,21 @@
       state[q.key] = d.value;
       picked[q.key] = q.options.indexOf(d);
     });
+    // Price / quality lean from the visitor's own picks, for the owner's alert
+    // only (never shown to the homeowner). A guess: basic picks can mean a
+    // tight budget, not that price matters most. Time can't be read from the
+    // answers, so the owner asks about it on the call.
+    function priorityLean() {
+      var price = [], quality = [];
+      QUESTIONS.forEach(function (q) {
+        var o = q.options[picked[q.key]] || {};
+        if (o.lean === 'price') price.push(o.say);
+        if (o.lean === 'quality') quality.push(o.say);
+      });
+      if (price.length > quality.length) return 'Leans price (' + price.join(', ') + ')';
+      if (quality.length > price.length) return 'Leans quality (' + quality.join(', ') + ')';
+      return 'No clear lean';
+    }
     function answersList() {
       return QUESTIONS.map(function (q) {
         var o = q.options[picked[q.key]] || {};
@@ -358,6 +379,9 @@
     var tierHeading = el('p', { class: 'cew-tier-heading', style: 'color:' + cfg.colorDark });
     var tierIntro = el('p', { class: 'cew-blurb' });
     var tierBullets = el('ul', { class: 'cew-tier-bullets' });
+    var expectNote = el('p', { class: 'cew-expect', style: 'border-left-color:' + cfg.colorPrimary });
+    expectNote.textContent = cfg.expectationNote || '';
+    expectNote.hidden = !String(cfg.expectationNote || '').trim();
 
     // Fills the price display (range, "Based on: ..." line, ZIP note, scope
     // copy) for the current answers and ZIP, and returns the same numbers and
@@ -409,7 +433,7 @@
       var settingLine = el('p', { class: 'cew-setting', style: 'color:' + cfg.colorDark });
       var emptyMsg = el('p', { class: 'cew-preview-empty', html: 'Pick your answers to see the price.' });
       var previewResult = el('div', { class: 'cew-result' }, [
-        el('div', {}, [bandLabel, priceRange, answersLine, zipNote, tierHeading, tierIntro, tierBullets]),
+        el('div', {}, [bandLabel, priceRange, answersLine, zipNote, tierHeading, tierIntro, tierBullets, expectNote]),
         settingLine
       ]);
       var controls = el('div', { class: 'cew-preview-controls' }, [
@@ -530,7 +554,7 @@
     var resultMsg = el('div', { class: 'cew-msg' }); resultMsg.hidden = true;
 
     var result = el('div', { class: 'cew-result' }, [
-      el('div', {}, [bandLabel, priceRange, answersLine, zipNote, tierHeading, tierIntro, tierBullets]),
+      el('div', {}, [bandLabel, priceRange, answersLine, zipNote, tierHeading, tierIntro, tierBullets, expectNote]),
       callbackMsg,
       callNowLink,
       resultMsg
@@ -590,6 +614,7 @@
         tier_label: currentScopeLabel(), zip: zipVal, price_adjustment_pct: Math.round((mult - 1) * 100),
         wants_call: wantsCall ? 'Yes' : 'No',
         answers_summary: answersSummary,
+        priority_lean: priorityLean(),
         client_adjustment_pct: adjustmentPct,
         ref: cfg.ref
       };

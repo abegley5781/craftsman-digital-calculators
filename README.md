@@ -35,6 +35,18 @@ webhook payload as `answers_summary`. To save it on the contact (and show it in
 Email 1), each client's GHL location needs one text custom field mapped to
 `answers_summary` in the lead-capture workflow's Create/Update Contact step.
 
+**Price, speed, quality note:** both engines show one line under the range on
+the results screen: "Every remodel is a trade between three things: the price,
+how fast it gets done, and the quality of the work..." A page can replace it with
+`data-expectation-note="..."` or hide it with `data-expectation-note=""`.
+
+**Priority lean (owner only):** both engines also send `priority_lean` in the
+webhook payload: "Leans price (...)", "Leans quality (...)", or "No clear lean",
+read from the finish and tile answers (bathroom) or the cabinet and counter
+answers (kitchen). It is never shown to the homeowner. It is a guess, and it
+can't show time. To use it, map `priority_lean` to a text custom field in the
+lead-capture workflow and add that field to the owner's lead alert.
+
 To update the calculator for every client at once, edit `bathroom-engine.js` and
 push — no per-client GHL edits needed. To onboard a new client, create their
 custom values in their own GHL location and paste the snippet above with their
