@@ -165,6 +165,7 @@
       '.cew-name{font-family:"Montserrat",sans-serif;font-size:1.35rem;font-weight:700;margin-top:.2rem;}',
       '.cew-promise{font-size:.82rem;font-weight:700;text-align:center;background:var(--cew-tint);border:1px solid var(--cew-line);border-radius:8px;padding:.6rem .8rem;margin:0 0 1.2rem;}',
       '.cew-qgrid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:1.1rem 0 1.3rem;}',
+      '.cew-qgrid .cew-wide{grid-column:1 / -1;}',
       '@media (max-width:420px){.cew-qgrid{grid-template-columns:1fr;}.cew-lead-fields{grid-template-columns:1fr;}}',
       '.cew-field label,.cew-field-wrap label{display:block;font-size:.78rem;font-weight:700;margin-bottom:.35rem;line-height:1.3;}',
       '.cew-field select{width:100%;font:inherit;font-size:.9rem;color:#101828;background:#fff;border:1px solid #cbd5e0;border-radius:8px;padding:.6rem .65rem;}',
@@ -346,7 +347,7 @@
         select.appendChild(opt);
       });
       select.addEventListener('change', function (e) { state[q.key] = Number(e.target.value); picked[q.key] = e.target.selectedIndex - 1; select.classList.remove('cew-err'); });
-      qgrid.appendChild(el('div', { class: 'cew-field' }, [
+      qgrid.appendChild(el('div', { class: q.key === 'start' ? 'cew-field cew-wide' : 'cew-field' }, [
         el('label', { style: 'color:' + cfg.colorDark, html: q.label }),
         select
       ]));
