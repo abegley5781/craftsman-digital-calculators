@@ -79,6 +79,11 @@
   // data-expectation-note="..." or hide it with data-expectation-note="".
   var DEFAULT_EXPECTATION_NOTE = 'Every remodel is a trade between three things: the price, how fast it gets done, and the quality of the work. You can usually have two of the three. When you talk with us, tell us which one matters most to you.';
 
+  // "Powered by Craftsman Digital" line under the calculator (Andrew, 2026-10-16).
+  // Every client gets it linked to CD's how-it-works page; a Complete-tier
+  // page shows it as plain text with data-powered-by="text".
+  var POWERED_BY_URL = 'https://craftsman-digital.com/how-it-works?ref=calculator';
+
   var QUESTIONS = [
     { key: 'size', label: 'How would you describe the size of the bathroom?', options: [
       { label: '25–50 sqft (Small/half bath)', value: 10, say: 'a small bathroom (25–50 sqft)' },
@@ -168,6 +173,9 @@
       // !important here is what makes hidden actually stay hidden.
       '.cew-wrap [hidden]{display:none!important;}',
       '.cew-wrap{max-width:36rem;margin:0 auto;padding:1.5rem 1rem;font-family:"Lato",-apple-system,"Segoe UI",sans-serif;--cew-tint:#f3f8fb;--cew-line:#d7e8f5;}',
+      '.cew-powered{text-align:center;font-size:.78rem;line-height:1.4;color:#6b7785;margin:.75rem 0 0;}',
+      '.cew-powered a{color:inherit;text-decoration:underline;text-underline-offset:2px;}',
+      '.cew-powered a:hover{color:var(--cew-primary,#188bf6);}',
       // Tints follow the client's primary color; browsers without color-mix keep the light-blue defaults above.
       '@supports (color:color-mix(in srgb,red,blue)){.cew-wrap{--cew-tint:color-mix(in srgb,var(--cew-primary,#188bf6) 6%,#fff);--cew-line:color-mix(in srgb,var(--cew-primary,#188bf6) 14%,#fff);}}',
       '.cew{background:#ffffff;color:#101828;border-radius:12px;padding:1.9rem 1.7rem 1.7rem;box-shadow:0 12px 32px -20px rgba(16,24,40,.35);border:1px solid #EAEAEA;}',
@@ -240,6 +248,20 @@
     }
     (children || []).forEach(function (c) { e.appendChild(c); });
     return e;
+  }
+
+  function poweredBy(root) {
+    var line = el('p', { class: 'cew-powered' });
+    var name = 'Craftsman Digital';
+    if (String(root.getAttribute('data-powered-by') || '').trim().toLowerCase() === 'text') {
+      line.textContent = 'Powered by ' + name;
+    } else {
+      line.appendChild(document.createTextNode('Powered by '));
+      var a = el('a', { href: POWERED_BY_URL, target: '_blank', rel: 'noopener' });
+      a.textContent = name;
+      line.appendChild(a);
+    }
+    return line;
   }
 
   function init(root) {
@@ -501,6 +523,7 @@
       card.appendChild(emptyMsg);
       card.appendChild(previewResult);
       wrap.appendChild(card);
+      wrap.appendChild(poweredBy(root));
       root.innerHTML = '';
       root.appendChild(wrap);
       renderPreview();
@@ -662,6 +685,7 @@
     card.appendChild(form);
     card.appendChild(result);
     wrap.appendChild(card);
+    wrap.appendChild(poweredBy(root));
     root.innerHTML = '';
     root.appendChild(wrap);
   }

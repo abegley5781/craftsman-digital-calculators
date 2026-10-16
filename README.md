@@ -48,6 +48,12 @@ the results screen: "Every remodel is a trade between three things: the price,
 how fast it gets done, and the quality of the work..." A page can replace it with
 `data-expectation-note="..."` or hide it with `data-expectation-note=""`.
 
+**Powered by line (2026-10-16):** all three engines show a small "Powered by
+Craftsman Digital" line under the calculator card, linked to
+craftsman-digital.com/how-it-works (opens in a new tab, `?ref=calculator`).
+Every client gets the link. A Complete-tier page shows it as plain text, no
+link: add `data-powered-by="text"` to its `cewRoot` div.
+
 **Priority lean (owner only):** both engines also send `priority_lean` in the
 webhook payload: "Leans price (...)", "Leans quality (...)", or "No clear lean",
 read from the finish and tile answers (bathroom) or the cabinet and counter
