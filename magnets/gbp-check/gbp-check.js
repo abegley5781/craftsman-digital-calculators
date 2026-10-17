@@ -131,17 +131,23 @@
       fix: 'Add real photos of your finished jobs. Google shares up to 10 with this check, so 10 is full marks.',
       ok: photos >= 10
     });
-    // A category is only useful if it names the trade. CKB's own live check (2026-10-17) came back
-    // "Services", which tells Google nothing about remodeling, so generic ones get half marks and a fix line.
+    // Main category. Google's public place data shows a placeholder like "Services" when the real
+    // category has no matching place type: CKB's profile is set to Remodeler (+ Kitchen remodeler,
+    // Bathroom remodeler) but the API returns "Services" (Lane C, 2026-10-17). So a placeholder is
+    // never called a problem: full points and a soft "check it" note. Only a category that clearly
+    // names something else (not the trade, not a placeholder) gets the fix line.
     var cat = you.category || '';
-    var tradeCat = /remodel|contractor|construct|builder|handyman|carpent|cabinet|kitchen|bath|basement|tile|floor|paint|renovat|countertop|cabinet/i.test(cat);
+    var placeholder = /^(services?|point of interest|establishment|business|store|local business)$/i.test(cat.trim());
+    var tradeCat = /remodel|contractor|construct|builder|handyman|carpent|cabinet|kitchen|bath|basement|tile|floor|paint|renovat|countertop/i.test(cat);
+    var catOk = !!cat && (tradeCat || placeholder);
     rows.push({
-      key: 'category', label: 'Main category', max: 10, pts: !cat ? 0 : tradeCat ? 10 : 5,
-      found: cat || 'Not set',
+      key: 'category', label: 'Main category', max: 10, pts: !cat ? 0 : catOk ? 10 : 5,
+      found: !cat ? 'Not set' : placeholder ? 'Not shown in Google\'s public data' : cat,
       fix: !cat ? 'Pick a main category that names your trade, like Kitchen remodeler or General contractor.'
+        : placeholder ? 'Google\'s public data doesn\'t show your exact category. Check it\'s set to your trade in your Google Business Profile.'
         : tradeCat ? 'Make sure this matches the work you want most.'
-        : '"' + cat + '" doesn\'t tell Google what you do. Pick one that names your trade, like Kitchen remodeler, Bathroom remodeler or General contractor.',
-      ok: tradeCat, soft: tradeCat
+        : '"' + cat + '" doesn\'t name your trade. If remodeling is your main work, pick a category like Kitchen remodeler, Bathroom remodeler or General contractor.',
+      ok: catOk, soft: catOk
     });
     var open = you.status === 'OPERATIONAL';
     rows.push({
