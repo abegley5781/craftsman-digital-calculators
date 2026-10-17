@@ -48,10 +48,12 @@
     rows.push({ key: 'speed', label: 'Mobile speed', ok: s !== null && s >= 90, warn: s !== null && s >= 50 && s < 90,
       found: s === null ? 'Couldn\'t measure' : s + ' of 100 (' + band + ')' + (d.lcpSeconds ? ', main content shows in ' + d.lcpSeconds.toFixed(1) + ' s' : ''),
       fix: 'Most homeowners look you up on a phone. Big photos are the usual cause; shrink them before you upload.' });
-    rows.push({ key: 'tel', label: 'Tap-to-call link', ok: !!d.hasTel, found: d.hasTel ? 'Yes' : 'None found on the home page',
-      fix: 'Make your phone number a link people can tap to call. On a phone, typing a number is one more reason not to call.' });
+    // We read the page's code as it arrives. Some site builders (GHL, Wix and others) add buttons
+    // after the page loads, so "not found" is said plainly as "not in the code", with a phone check.
+    rows.push({ key: 'tel', label: 'Tap-to-call link', ok: !!d.hasTel, found: d.hasTel ? 'Yes' : 'Not found in your home page\'s code',
+      fix: 'Make your phone number a link people can tap to call. On a phone, typing a number is one more reason not to call. Some site builders add the link after the page loads: open your site on your phone and tap the number. If it dials, you\'re fine.' });
     rows.push({ key: 'form', label: 'Contact form or quote button', ok: !!(d.hasForm || d.quoteLink),
-      found: d.hasForm && d.quoteLink ? 'Form and "' + d.quoteLink + '"' : d.hasForm ? 'Form' : d.quoteLink ? '"' + d.quoteLink + '"' : 'None found on the home page',
+      found: d.hasForm && d.quoteLink ? 'Form and "' + d.quoteLink + '"' : d.hasForm ? 'Form' : d.quoteLink ? '"' + d.quoteLink + '"' : 'Not found in your home page\'s code',
       fix: 'Give people a way to reach you at 10 at night, when they plan projects: a short form or a "Get an estimate" button.' });
     return rows;
   }

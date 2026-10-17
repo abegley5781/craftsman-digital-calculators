@@ -21,7 +21,7 @@
  * monthly cap, and returns only what this file needs:
  *   GET  {api}/autocomplete?input=...&session=...
  *        -> { suggestions: [{ placeId, main, secondary }] }
- *   POST {api}/gbp-check  { placeId, session, trade }
+ *   POST {api}/gbp-check  { placeId, session, trade, area }   (area = the town box)
  *        -> { you: { name, address, town, mapsUri, rating, reviews, website,
  *                    hasHours, phone, photos, status, category },
  *             search: { query, rank, checked, top: [{ name, reviews, rating }] } }
@@ -62,7 +62,8 @@
     { placeId: 'mock-2', main: 'Sample Kitchen & Bath', secondary: 'Camino del Rio, Durango, CO' },
     { placeId: 'mock-3', main: 'Sample Home Repair', secondary: 'Florida Rd, Durango, CO' }
   ];
-  function mockCheck(pick, trade) {
+  function mockCheck(pick, trade, town) {
+    town = town || 'Durango, CO';
     return {
       you: {
         name: pick.main, address: pick.secondary, town: 'Durango, CO',
@@ -71,7 +72,7 @@
         photos: 4, status: 'OPERATIONAL', category: 'General contractor'
       },
       search: {
-        query: trade + ' near Durango, CO', rank: 7, checked: 20,
+        query: trade + ' near ' + town, rank: 7, checked: 20,
         top: [
           { name: 'Sample Co. A (top result)', reviews: 84, rating: 4.9 },
           { name: 'Sample Co. B', reviews: 61, rating: 4.7 },
@@ -130,11 +131,17 @@
       fix: 'Add real photos of your finished jobs. Google shares up to 10 with this check, so 10 is full marks.',
       ok: photos >= 10
     });
+    // A category is only useful if it names the trade. CKB's own live check (2026-10-17) came back
+    // "Services", which tells Google nothing about remodeling, so generic ones get half marks and a fix line.
+    var cat = you.category || '';
+    var tradeCat = /remodel|contractor|construct|builder|handyman|carpent|cabinet|kitchen|bath|basement|tile|floor|paint|renovat|countertop|cabinet/i.test(cat);
     rows.push({
-      key: 'category', label: 'Main category', max: 10, pts: you.category ? 10 : 0,
-      found: you.category || 'Not set',
-      fix: you.category ? 'Make sure this matches the work you want most.' : 'Pick a main category that matches the work you want most.',
-      ok: !!you.category, soft: !!you.category
+      key: 'category', label: 'Main category', max: 10, pts: !cat ? 0 : tradeCat ? 10 : 5,
+      found: cat || 'Not set',
+      fix: !cat ? 'Pick a main category that names your trade, like Kitchen remodeler or General contractor.'
+        : tradeCat ? 'Make sure this matches the work you want most.'
+        : '"' + cat + '" doesn\'t tell Google what you do. Pick one that names your trade, like Kitchen remodeler, Bathroom remodeler or General contractor.',
+      ok: tradeCat, soft: tradeCat
     });
     var open = you.status === 'OPERATIONAL';
     rows.push({
@@ -272,15 +279,21 @@
     var list = el('ul', { class: 'cdm-list', id: 'cdm-list', role: 'listbox' }); list.hidden = true;
     var tradeSel = el('select', { id: 'cdm-trade' }, [el('option', { value: '', text: 'Pick one' })]
       .concat(TRADES.map(function (t) { return el('option', { value: t.value, text: t.label }); })));
+    // Town for the rank search. Filled from the dropdown when Google shows one; required when it isn't
+    // (service-area listings hide the address, so Google has no town for them).
+    var townInput = el('input', { type: 'text', id: 'cdm-town', autocomplete: 'address-level2', placeholder: 'Cortez, CO' });
+    var townAuto = false;
+    townInput.addEventListener('input', function () { townAuto = false; });
     var checkBtn = el('button', { type: 'button', class: 'cdm-btn', text: 'Check my Google profile' });
     var formMsg = el('p', { class: 'cdm-msg', role: 'alert' }); formMsg.hidden = true;
 
     var step1 = el('div', { class: 'cdm-card', style: 'border:0;padding:0' }, [
       el('h3', { text: 'How does your Google profile stack up against the top 3 near you?' }),
-      el('p', { class: 'cdm-lede', text: 'Find your business, pick what people search for, and see your score in about 10 seconds. No email needed to see it.' }),
+      el('p', { class: 'cdm-lede', text: 'Find your business, pick what people search for and your town, and see your score in about 10 seconds. No email needed to see it.' }),
       el('div', { class: 'cdm-row' }, [
         el('div', { class: 'cdm-field' }, [el('label', { for: 'cdm-name', text: 'Your business on Google' }), nameInput, list]),
-        el('div', { class: 'cdm-field' }, [el('label', { for: 'cdm-trade', text: 'What people search to find you' }), tradeSel])
+        el('div', { class: 'cdm-field' }, [el('label', { for: 'cdm-trade', text: 'What people search to find you' }), tradeSel]),
+        el('div', { class: 'cdm-field' }, [el('label', { for: 'cdm-town', text: 'Town you want to show up in' }), townInput])
       ]),
       checkBtn, formMsg
     ]);
@@ -309,7 +322,13 @@
     function choose(i) {
       picked = items[i];
       nameInput.value = picked.main;
+      // 'W Main St, Cortez, CO, USA' -> 'Cortez, CO'. 'Colorado, USA' has no town, so leave the box for them.
+      var parts = String(picked.secondary || '').split(',').map(function (p) { return p.trim(); }).filter(Boolean);
+      if (parts.length && /^usa$/i.test(parts[parts.length - 1])) parts.pop();
+      var guess = parts.length >= 2 ? parts[parts.length - 2] + ', ' + parts[parts.length - 1] : '';
+      if (!townInput.value.trim() || townAuto) { townInput.value = guess; townAuto = !!guess; }
       closeList();
+      if (!townInput.value.trim()) townInput.focus();
     }
     function fetchSuggestions(q) {
       if (cfg.mock) {
@@ -344,7 +363,7 @@
       picked = MOCK_SUGGESTIONS[0];
       nameInput.value = picked.main;
       tradeSel.value = root.getAttribute('data-autorun');
-      last = { you: null };
+      townInput.value = 'Durango, CO';
       var d0 = mockCheck(picked, tradeSel.value);
       last = { you: d0.you, search: d0.search, scored: scoreProfile(d0.you, d0.search.top) };
       setTimeout(function () { renderResults(true); }, 0);
@@ -355,15 +374,17 @@
     checkBtn.addEventListener('click', function () {
       nameInput.classList.toggle('cdm-err', !picked);
       tradeSel.classList.toggle('cdm-err', !tradeSel.value);
+      townInput.classList.toggle('cdm-err', !townInput.value.trim());
       if (!picked) { showMsg('Pick your business from the list that shows up as you type.'); return; }
       if (!tradeSel.value) { showMsg('Pick what people search for to find you.'); return; }
+      if (!townInput.value.trim()) { showMsg('Add the town you want to show up in, like Cortez, CO.'); return; }
       showMsg('');
       checkBtn.disabled = true; checkBtn.textContent = 'Checking...';
       var run = cfg.mock
-        ? new Promise(function (res) { setTimeout(function () { res(mockCheck(picked, tradeSel.value)); }, 500); })
+        ? new Promise(function (res) { setTimeout(function () { res(mockCheck(picked, tradeSel.value, townInput.value.trim())); }, 500); })
         : fetch(cfg.api + '/gbp-check', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ placeId: picked.placeId, session: session, trade: tradeSel.value })
+            body: JSON.stringify({ placeId: picked.placeId, session: session, trade: tradeSel.value, area: townInput.value.trim() })
           }).then(function (r) { return r.json(); });
       run.then(function (d) {
         checkBtn.disabled = false; checkBtn.textContent = 'Check my Google profile';

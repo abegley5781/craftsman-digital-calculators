@@ -71,18 +71,32 @@ async function google(url, env, fieldMask, init) {
   const res = await fetch(url, Object.assign({}, init || {}, {
     headers: Object.assign({ 'X-Goog-Api-Key': env.GOOGLE_KEY, 'X-Goog-FieldMask': fieldMask, 'Content-Type': 'application/json' }, (init && init.headers) || {})
   }));
-  if (!res.ok) throw new Error('google ' + res.status);
+  if (!res.ok) {
+    // Logged for `wrangler tail` only; visitors get the plain error message.
+    const text = await res.text().catch(() => '');
+    console.error('google', res.status, url.split('?')[0], text.slice(0, 400));
+    throw new Error('google ' + res.status);
+  }
   return res.json();
 }
 
 // ---- Autocomplete (free when the session ends in a Details call) ----
-async function autocomplete(url, env) {
+// cf = Cloudflare's rough visitor location (city level, from the connection).
+// Without it, a name like "Craftsman Kitchen & Bath" lists shops in other
+// states first (found in the 2026-10-17 live test). It is only passed to
+// Google as a bias, never stored.
+async function autocomplete(url, env, cf) {
   const input = (url.searchParams.get('input') || '').slice(0, 120).trim();
   const session = (url.searchParams.get('session') || '').slice(0, 64);
   if (input.length < 2) return { suggestions: [] };
+  // Pure service-area businesses (address hidden, common for small remodelers)
+  // are left out unless asked for: 'Defaults to false' (Places Autocomplete docs).
+  const body = { input, sessionToken: session || undefined, includedRegionCodes: ['us'], includePureServiceAreaBusinesses: true };
+  const lat = cf && parseFloat(cf.latitude), lng = cf && parseFloat(cf.longitude);
+  if (isFinite(lat) && isFinite(lng)) body.locationBias = { circle: { center: { latitude: lat, longitude: lng }, radius: 50000 } };
   const d = await google(PLACES + '/places:autocomplete', env,
     'suggestions.placePrediction.placeId,suggestions.placePrediction.structuredFormat',
-    { method: 'POST', body: JSON.stringify({ input, sessionToken: session || undefined, includedRegionCodes: ['us'] }) });
+    { method: 'POST', body: JSON.stringify(body) });
   return {
     suggestions: (d.suggestions || []).filter((s) => s.placePrediction).slice(0, 5).map((s) => ({
       placeId: s.placePrediction.placeId,
@@ -105,6 +119,8 @@ async function gbpCheck(body, env) {
   const placeId = String(body.placeId || '').slice(0, 300);
   const trade = String(body.trade || '').slice(0, 60).trim();
   const session = String(body.session || '').slice(0, 64);
+  // The town box from the tool ("Cortez, CO"). Service-area listings hide their address, so Google has no town for them.
+  const area = String(body.area || '').replace(/,\s*USA$/i, '').replace(/[^A-Za-z0-9 ,.'-]/g, '').slice(0, 80).trim();
   const TRADES = ['bathroom remodeler', 'kitchen remodeler', 'kitchen and bath remodeler', 'remodeling contractor', 'basement finishing', 'handyman'];
   if (!/^[A-Za-z0-9_-]{10,300}$/.test(placeId)) return { error: 'Pick your business from the list.' };
   if (!TRADES.includes(trade)) return { error: 'Pick what people search for to find you.' };
@@ -113,10 +129,12 @@ async function gbpCheck(body, env) {
   const qs = session ? '?sessionToken=' + encodeURIComponent(session) : '';
   const p = await google(PLACES + '/places/' + encodeURIComponent(placeId) + qs, env,
     'id,displayName,formattedAddress,addressComponents,googleMapsUri,rating,userRatingCount,websiteUri,regularOpeningHours,nationalPhoneNumber,photos,businessStatus,primaryTypeDisplayName');
-  const town = townOf(p);
-  const query = trade + ' near ' + (town || p.formattedAddress || '');
+  // The town the contractor typed wins; Google's own town is the fallback.
+  const town = area || townOf(p);
+  if (!town && !p.formattedAddress) return { error: 'Google has no town on your profile. Add your service area on Google, then try again.' };
+  const query = trade + ' near ' + (town || p.formattedAddress);
   const s = await google(PLACES + '/places:searchText', env, 'places.id,places.displayName',
-    { method: 'POST', body: JSON.stringify({ textQuery: query, pageSize: 20 }) });
+    { method: 'POST', body: JSON.stringify({ textQuery: query, pageSize: 20, includePureServiceAreaBusinesses: true }) });
   const ids = (s.places || []).map((x) => x.id);
   const idx = ids.indexOf(p.id);
   const topIds = ids.slice(0, 3);
@@ -169,7 +187,16 @@ async function siteCheck(url, env) {
 
   const final = new URL(pg.finalUrl);
   const html = pg.html || '';
-  const quote = html.match(/<(a|button)\b[^>]*>([^<]{0,60}\b(free estimate|estimate|quote|contact us|get started|book)[^<]{0,40})<\/\1>/i);
+  // A way to reach them: a link or button whose text, aria-label (how GHL buttons carry
+  // their text) or address says contact / estimate / quote / book / calculator / price.
+  const REACH = /\b(free estimate|estimate|quote|contact|get started|book|schedule|calculator|price range|pricing)\b/i;
+  let quote = null;
+  for (const m of html.matchAll(/<(a|button)\b([^>]*)>([\s\S]{0,300}?)<\/\1>/gi)) {
+    const attrs = m[2] || '';
+    const label = ((attrs.match(/aria-label\s*=\s*["']([^"']{1,80})["']/i) || [])[1] || m[3].replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+    const href = (attrs.match(/href\s*=\s*["']([^"']{1,300})["']/i) || [])[1] || '';
+    if (REACH.test(label) || /contact|estimate|quote|calculator|book|schedule/i.test(href)) { quote = label.slice(0, 60) || href.slice(0, 60); break; }
+  }
   const perf = ps && ps.lighthouseResult && ps.lighthouseResult.categories && ps.lighthouseResult.categories.performance;
   const lcp = ps && ps.lighthouseResult && ps.lighthouseResult.audits && ps.lighthouseResult.audits['largest-contentful-paint'];
   return {
@@ -181,7 +208,7 @@ async function siteCheck(url, env) {
     offDomain: baseDomain(final.hostname) !== baseDomain(target.hostname),
     hasTel: /href\s*=\s*["']tel:/i.test(html),
     hasForm: /<form[\s>]/i.test(html) || /\/widget\/form\//i.test(html) || /\/widget\/survey\//i.test(html),
-    quoteLink: quote ? quote[2].replace(/\s+/g, ' ').trim() : '',
+    quoteLink: quote || '',
     mobileScore: perf && typeof perf.score === 'number' ? Math.round(perf.score * 100) : null,
     lcpSeconds: lcp && typeof lcp.numericValue === 'number' ? Math.round(lcp.numericValue / 100) / 10 : null
   };
@@ -195,7 +222,7 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
     const url = new URL(request.url);
     try {
-      if (request.method === 'GET' && url.pathname === '/autocomplete') return json(await autocomplete(url, env), 200, headers);
+      if (request.method === 'GET' && url.pathname === '/autocomplete') return json(await autocomplete(url, env, request.cf), 200, headers);
       if (request.method === 'POST' && url.pathname === '/gbp-check') {
         const body = await request.json().catch(() => ({}));
         return json(await gbpCheck(body, env), 200, headers);
