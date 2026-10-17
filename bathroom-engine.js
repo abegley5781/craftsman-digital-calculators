@@ -225,6 +225,8 @@
       '.cew-tier-bullets li{margin-bottom:.2rem;}',
       '.cew-expect{margin:.9rem 0 0;padding:.1rem 0 .1rem .75rem;border-left:3px solid #188bf6;font-size:1rem;line-height:1.6;color:#4a5568;}',
       '.cew-callback-msg{font-size:.9rem;line-height:1.5;color:#1f5c33;background:#eafaf0;border:1px solid #b7e4c7;border-radius:8px;padding:.75rem .85rem;}',
+      '.cew-next{font-size:.9rem;line-height:1.5;color:#4a5568;margin:0;}',
+      '.cew-notes{resize:vertical;min-height:4.5rem;}',
       '.cew-msg{font-size:.85rem;line-height:1.5;border-radius:8px;padding:.65rem .8rem;}',
       '.cew-msg.cew-error{background:#fdecea;color:#a1362a;border:1px solid #f3c6c1;}',
       // Preview mode (data-mode="preview") only.
@@ -281,6 +283,8 @@
       tiers: [],
       scopeCopy: {},
       zipMultipliers: {},
+      responseTime: String(root.getAttribute('data-response-time') || '').trim(),
+      bookingClosed: String(root.getAttribute('data-booking-status') || '').trim().toLowerCase() === 'closed',
       expectationNote: root.hasAttribute('data-expectation-note') ? root.getAttribute('data-expectation-note') : DEFAULT_EXPECTATION_NOTE
     };
     // Belt and braces: preview mode never builds the form or submit handler,
@@ -544,6 +548,8 @@
     });
     var wantsCallBox = el('input', { type: 'checkbox' });
     var consentBox = el('input', { type: 'checkbox' });
+    // Optional open question (PX research, 2026-10-17): the one answer that isn't required.
+    var notesInput = el('textarea', { class: 'cew-lead-input cew-notes', rows: '3', maxlength: '500', placeholder: 'Optional' });
     var consentRow = el('div', { class: 'cew-consent-row' }, [
       consentBox,
       el('label', { html:
@@ -580,6 +586,7 @@
       ]),
       el('div', { class: 'cew-est-row' }, [wantsCallBox, el('label', { html: 'I&rsquo;d also like a call to talk through my project' })]),
       (function () { var w = el('div', { class: 'cew-field-wrap' }, [el('label', { style: 'color:' + cfg.colorDark, html: 'Phone Number *' }), phoneInput]); phoneWrap.innerHTML = ''; phoneWrap.appendChild(w); return phoneWrap; })(),
+      el('div', { class: 'cew-field-wrap cew-notes-wrap' }, [el('label', { style: 'color:' + cfg.colorDark, html: 'Anything else we should know about your project?' }), notesInput]),
       consentRow,
       el('div', { class: 'cew-cta-row' }, [submitBtn]),
       formMsg,
@@ -587,6 +594,7 @@
     ]);
 
     var callbackMsg = el('div', { class: 'cew-callback-msg' }); callbackMsg.hidden = true;
+    var nextMsg = el('p', { class: 'cew-next' });
     var callNowLink = el('a', {
       class: 'cew-cta-outline', href: '#',
       style: 'color:' + cfg.colorPrimary + ';border-color:' + cfg.colorPrimary,
@@ -599,6 +607,7 @@
     var result = el('div', { class: 'cew-result' }, [
       el('div', {}, [bandLabel, priceRange, answersLine, zipNote, tierHeading, tierIntro, tierBullets, expectNote]),
       callbackMsg,
+      nextMsg,
       callNowLink,
       resultMsg
     ]);
@@ -649,10 +658,14 @@
       var answersSummary = shown.answersSummary;
       if (wantsCall) {
         callbackMsg.hidden = false;
-        callbackMsg.textContent = 'Thanks, ' + firstVal + '! We’ll give you a call soon to talk through your project.';
+        callbackMsg.textContent = cfg.bookingClosed
+          ? 'Thanks, ' + firstVal + '. We\u2019re not taking on new projects right now, so we\u2019ve added you to our wait list. We\u2019ll call you as soon as we\u2019re able.'
+          : 'Thanks, ' + firstVal + '! We\u2019ll call you ' + (cfg.responseTime || 'soon') + ' at ' + phoneVal + ' to talk through your project.';
       } else {
         callbackMsg.hidden = true;
       }
+      nextMsg.textContent = 'Your price range and answers are on their way to ' + emailVal + '. If you don\u2019t see the email in a few minutes, check your Promotions or spam folder.';
+      callNowLink.hidden = cfg.bookingClosed;
       form.hidden = true;
       result.hidden = false;
 
@@ -663,6 +676,7 @@
         tier_label: currentScopeLabel(), zip: zipVal, price_adjustment_pct: Math.round((mult - 1) * 100),
         wants_call: wantsCall ? 'Yes' : 'No',
         answers_summary: answersSummary,
+        project_notes: notesInput.value.trim(),
         priority_lean: priorityLean(),
         start_timeframe: startTimeframe(),
         client_adjustment_pct: adjustmentPct,

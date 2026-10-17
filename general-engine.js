@@ -469,6 +469,8 @@
       '.cew-result .cew-note{font-size:.88rem;line-height:1.5;color:#334155;background:#f5f5f5;border:1px solid #EAEAEA;border-radius:8px;padding:.6rem .75rem;margin:.7rem 0 0;}',
       '.cew-expect{margin:.9rem 0 0;padding:.1rem 0 .1rem .75rem;border-left:3px solid #188bf6;font-size:1rem;line-height:1.6;color:#4a5568;}',
       '.cew-callback-msg{font-size:.9rem;line-height:1.5;color:#1f5c33;background:#eafaf0;border:1px solid #b7e4c7;border-radius:8px;padding:.75rem .85rem;}',
+      '.cew-next{font-size:.9rem;line-height:1.5;color:#4a5568;margin:0;}',
+      '.cew-notes{resize:vertical;min-height:4.5rem;}',
       '.cew-msg{font-size:.85rem;line-height:1.5;border-radius:8px;padding:.65rem .8rem;}',
       '.cew-msg.cew-error{background:#fdecea;color:#a1362a;border:1px solid #f3c6c1;}',
       // Preview mode (data-mode="preview") only.
@@ -526,6 +528,8 @@
       rates: DEFAULT_RATES,
       scopeCopy: SCOPE_COPY,
       zipMultipliers: {},
+      responseTime: String(root.getAttribute('data-response-time') || '').trim(),
+      bookingClosed: String(root.getAttribute('data-booking-status') || '').trim().toLowerCase() === 'closed',
       expectationNote: root.hasAttribute('data-expectation-note') ? root.getAttribute('data-expectation-note') : DEFAULT_EXPECTATION_NOTE
     };
     // Belt and braces: preview mode never builds the form or submit handler,
@@ -802,6 +806,8 @@
     });
     var wantsCallBox = el('input', { type: 'checkbox' });
     var consentBox = el('input', { type: 'checkbox' });
+    // Optional open question (PX research, 2026-10-17): the one answer that isn't required.
+    var notesInput = el('textarea', { class: 'cew-lead-input cew-notes', rows: '3', maxlength: '500', placeholder: 'Optional' });
     var consentRow = el('div', { class: 'cew-consent-row' }, [
       consentBox,
       el('label', { html:
@@ -840,6 +846,7 @@
       ]),
       el('div', { class: 'cew-est-row' }, [wantsCallBox, el('label', { html: 'I\'d also like a call to talk through my project' })]),
       phoneWrap,
+      el('div', { class: 'cew-field-wrap cew-notes-wrap' }, [el('label', { style: 'color:' + cfg.colorDark, html: 'Anything else we should know about your project?' }), notesInput]),
       consentRow,
       el('div', { class: 'cew-cta-row' }, [submitBtn]),
       formMsg,
@@ -847,6 +854,7 @@
     ]);
 
     var callbackMsg = el('div', { class: 'cew-callback-msg' }); callbackMsg.hidden = true;
+    var nextMsg = el('p', { class: 'cew-next' });
     var callNowLink = el('a', {
       class: 'cew-cta-outline', href: '#',
       style: 'color:' + cfg.colorPrimary + ';border-color:' + cfg.colorPrimary,
@@ -856,7 +864,7 @@
     if (rawPhone) callNowLink.href = 'tel:+1' + rawPhone;
     var resultMsg = el('div', { class: 'cew-msg' }); resultMsg.hidden = true;
 
-    var result = el('div', { class: 'cew-result' }, [resultTop(), callbackMsg, callNowLink, resultMsg]);
+    var result = el('div', { class: 'cew-result' }, [resultTop(), callbackMsg, nextMsg, callNowLink, resultMsg]);
     result.hidden = true;
 
     submitBtn.addEventListener('click', function () {
@@ -899,10 +907,14 @@
       var shown = showPrice(zipVal);
       if (wantsCall) {
         callbackMsg.hidden = false;
-        callbackMsg.textContent = 'Thanks, ' + firstVal + '! We\'ll give you a call soon to talk through your project.';
+        callbackMsg.textContent = cfg.bookingClosed
+          ? 'Thanks, ' + firstVal + '. We\u2019re not taking on new projects right now, so we\u2019ve added you to our wait list. We\u2019ll call you as soon as we\u2019re able.'
+          : 'Thanks, ' + firstVal + '! We\u2019ll call you ' + (cfg.responseTime || 'soon') + ' at ' + phoneVal + ' to talk through your project.';
       } else {
         callbackMsg.hidden = true;
       }
+      nextMsg.textContent = 'Your price range and answers are on their way to ' + emailVal + '. If you don\u2019t see the email in a few minutes, check your Promotions or spam folder.';
+      callNowLink.hidden = cfg.bookingClosed;
       form.hidden = true;
       result.hidden = false;
 
@@ -915,6 +927,7 @@
         tier_label: scopeOpt.label || '', zip: zipVal, price_adjustment_pct: Math.round((shown.mult - 1) * 100),
         wants_call: wantsCall ? 'Yes' : 'No',
         answers_summary: shown.answersSummary,
+        project_notes: notesInput.value.trim(),
         priority_lean: priorityLean(),
         start_timeframe: startTimeframe(),
         client_adjustment_pct: adjustmentPct,
