@@ -1,0 +1,17 @@
+# cd-magnets Worker config (Cloudflare). Deploy: npx wrangler@3.112.0 deploy (from this folder).
+# Setup steps: ICM-WORKSPACE/workspaces/craftsman-digital/sprints/2026-10-15-close-path-clean/cd-sprint6-d-worker-setup.md
+name = "cd-magnets"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+workers_dev = true
+
+[vars]
+MONTHLY_CAP = "300"
+
+# Filled in after: npx wrangler@3.112.0 kv namespace create cd-magnets-usage
+[[kv_namespaces]]
+binding = "USAGE"
+id = "REPLACE_WITH_KV_ID"
+
+# GOOGLE_KEY is a secret, never in this file. Set it in the dashboard:
+# Workers & Pages > cd-magnets > Settings > Variables and Secrets > Add > Secret.
