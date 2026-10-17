@@ -54,6 +54,19 @@ craftsman-digital.com/how-it-works (opens in a new tab, `?ref=calculator`).
 Every client gets the link. A Complete-tier page shows it as plain text, no
 link: add `data-powered-by="text"` to its `cewRoot` div.
 
+**What happens next (2026-10-17):** after submit, all three engines say the price
+range and answers are on their way to the visitor's email (check Promotions or
+spam). A call request reads "We'll call you [response time] at [phone]" from
+`data-response-time="{{ custom_values.response_time_commitment }}"` ("soon" if
+blank). With `data-booking-status="{{ custom_values.booking__status }}"` set to
+`closed`, the call request says the visitor is on the wait list instead, and the
+"Call Us Now" button is hidden (the taking-projects switch).
+
+**Optional question:** "Anything else we should know about your project?" (not
+required, up to 500 characters), sent as `project_notes`. To see it, map
+`project_notes` to a text contact field in the lead-capture workflow and add it
+to the owner's lead alert.
+
 **Priority lean (owner only):** both engines also send `priority_lean` in the
 webhook payload: "Leans price (...)", "Leans quality (...)", or "No clear lean",
 read from the finish and tile answers (bathroom) or the cabinet and counter
