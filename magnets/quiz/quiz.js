@@ -36,8 +36,8 @@
     { stage: 'sales', text: 'I get calls, but not enough of them turn into signed jobs.' },
     { stage: 'sales', text: 'I miss calls while I\'m on a job, and some of those people never call back.' },
     { stage: 'sales', text: 'After I give an estimate, I follow up once or not at all.' },
-    { stage: 'production', text: 'I\'ve sold more work than I can build well.' },
-    { stage: 'production', text: 'Jobs run late, or I redo work, because the schedule or crew is stretched.' },
+    { stage: 'production', text: 'I\'ve sold more work than I have the time or crew to build.' },
+    { stage: 'production', text: 'I\'m booked out months ahead.' },
     { stage: 'operations', text: 'Nothing happens unless I do it.' },
     { stage: 'operations', text: 'If I took a week off, the business would stall.' }
   ];
@@ -46,6 +46,33 @@
     { label: 'Sometimes', pts: 1 },
     { label: 'Very true', pts: 2 }
   ];
+
+  // First moves per stage, for the emailed report (teaser on screen, full report by email:
+  // Andrew 2026-10-17). Leads and Sales come from the guide's Parts 2 and 3; Production and
+  // Operations from Parts 4 and 5 plus Andrew's 10/17 note that the production problem is time
+  // and crew, not quality.
+  var MOVES = {
+    leads: [
+      'Make referrals a system. At the final walkthrough, ask every happy customer for a name: "Who do you know who\'s been talking about redoing a bathroom?" gets a name; "Do you know anyone?" gets "I\'ll keep you in mind."',
+      'Fill in every field of your Google profile. Spell out your services and add real photos of real work.',
+      'Ask every finished customer for a Google review. Make it a habit, not a campaign.'
+    ],
+    sales: [
+      'Treat a missed call like a locked door. Call back fast, the same hour if you can. Most people won\'t leave a voicemail; they call the next contractor.',
+      'Follow up after every estimate, more than once. Most homeowners don\'t decide on the first contact.',
+      'Show a realistic price range before the visit, and ask early: "What matters most to you: the price, how fast it\'s done, or the finish?"'
+    ],
+    production: [
+      'Write down every sold job and the weeks it needs, so you can see how far out you\'re really booked.',
+      'Give new customers an honest start date before they sign, instead of squeezing them in.',
+      'Decide which work only you can do, and which a helper or a sub could take.'
+    ],
+    operations: [
+      'List the things that only happen when you remember them: callbacks, follow-ups, review asks.',
+      'Hand the repeating ones to something that doesn\'t forget: a system that replies, follows up and asks for the review.',
+      'Take one day off and see what stalls. That\'s your next thing to fix.'
+    ]
+  };
 
   // Result screens. "part" names the guide section to read.
   var RESULTS = {
@@ -65,7 +92,8 @@
     },
     production: {
       head: 'Your bottleneck is production.',
-      why: 'You\'ve sold more than you can build well. That\'s a good problem, but more leads won\'t help right now. The next fix is how the work gets done: schedules, crews, and who does what.',
+      // Matches the live guide's Part 1 recap (Andrew, 2026-10-17).
+      why: 'You\'ve sold more work than you have the time or crew to build, or you\'re booked out months ahead. That\'s a good problem, but more leads won\'t help right now. The next fix is how the work gets done: schedules, crews, and who does what.',
       part: 'Part 5: What comes next',
       fit: 'We\'re not the fix for this one yet. Our tools help get leads and turn them into jobs. Read the guide\'s section on what comes next, and come back when the calendar opens up.',
       link: null
@@ -86,6 +114,23 @@
     var pct = {}; STAGES.forEach(function (s) { pct[s] = max[s] ? Math.round(100 * got[s] / max[s]) : 0; });
     var top = STAGES.reduce(function (best, s) { return pct[s] > pct[best] ? s : best; }, STAGES[0]);
     return { pct: pct, top: top, allLow: STAGES.every(function (s) { return pct[s] < 34; }) };
+  }
+
+  // The emailed report (plain text; the email shows it as written, line breaks kept).
+  function quizReport(s) {
+    var r = RESULTS[s.top];
+    return [
+      r.head,
+      r.why,
+      '',
+      'Your first 3 moves:',
+      MOVES[s.top].map(function (m, i) { return (i + 1) + '. ' + m; }).join('\n'),
+      '',
+      'Your scores: ' + STAGES.map(function (st) { return STAGE_NAME[st] + ' ' + s.pct[st] + '%'; }).join(', ') + '.',
+      'Start with ' + r.part.replace(/^(Part \d+): (.+)$/, '$1 ($2)') + ' of the guide. The link is below.',
+      '',
+      r.fit
+    ].join('\n');
   }
 
   function el(tag, attrs, kids) {
@@ -209,9 +254,11 @@
         ]);
       })));
       result.appendChild(el('p', {}, ['Read ', el('a', { href: cfg.guide, target: '_blank', rel: 'noopener', text: r.part + ' of The Remodeler\'s Bottleneck Guide' }), '. It\'s free, no email needed.']));
-      var fit = el('div', { class: 'cdq-fit' }, [el('p', { text: r.fit })]);
-      if (r.link) fit.appendChild(el('p', {}, [el('a', { href: r.link.href, target: '_blank', rel: 'noopener', text: r.link.text })]));
-      result.appendChild(fit);
+      // Teaser ends here. The first moves and the fit line go in the emailed report.
+      result.appendChild(el('div', { class: 'cdq-fit' }, [
+        el('p', { style: 'font-weight:700', text: 'Your full report: the first 3 moves for ' + STAGE_NAME[last.top].toLowerCase() + ', by email' }),
+        el('p', { text: 'Three plain first steps for your bottleneck, your scores for all four stages, and the part of the guide to read first.' })
+      ]));
       var again = el('button', { type: 'button', class: 'cdq-btn', style: 'background:none;color:var(--cdm-steel);padding:6px 0;min-height:0;text-decoration:underline', text: 'Change my answers' });
       again.addEventListener('click', function () { result.hidden = true; quiz.hidden = false; });
       result.appendChild(again);
@@ -229,10 +276,10 @@
       var consent = el('div', { class: 'cdq-consent' }, [box, el('label', { for: 'cdq-consent' }, [CONSENT_TEXT + ' ',
         el('a', { href: cfg.terms, target: '_blank', rel: 'noopener', text: 'Terms of Service' }), ' and ',
         el('a', { href: cfg.privacy, target: '_blank', rel: 'noopener', text: 'Privacy Policy' }), '.'])]);
-      var send = el('button', { type: 'button', class: 'cdq-btn', text: 'Email me my results' });
+      var send = el('button', { type: 'button', class: 'cdq-btn', text: 'Email me my full report' });
       var m = el('p', { class: 'cdq-msg', role: 'alert' }); m.hidden = true;
       var b = el('div', { class: 'cdq-optin' }, [
-        el('h4', { text: 'Email me my results + the Bottleneck Guide' }),
+        el('h4', { text: 'Email me my full report + the Bottleneck Guide' }),
         el('div', { class: 'cdq-grid' }, [
           el('div', { class: 'cdq-field' }, [el('label', { for: 'cdq-first', text: 'First name' }), first]),
           el('div', { class: 'cdq-field' }, [el('label', { for: 'cdq-email', text: 'Email *' }), email]),
@@ -242,14 +289,14 @@
         var ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim()); var d = phone.value.replace(/\D/g, '');
         email.classList.toggle('cdq-err', !ok); phone.classList.toggle('cdq-err', d.length < 10); consent.classList.toggle('cdq-err', !box.checked);
         if (!ok || d.length < 10) { m.hidden = false; m.textContent = 'Add a valid email and phone number.'; return; }
-        if (!box.checked) { m.hidden = false; m.textContent = 'Check the box to get your results by email.'; return; }
+        if (!box.checked) { m.hidden = false; m.textContent = 'Check the box to get your full report by email.'; return; }
         m.hidden = true;
         function done(t) { b.innerHTML = ''; b.appendChild(el('h4', { text: 'Sent.' })); b.appendChild(el('p', { class: 'cdq-done', text: t })); }
-        if (hp.value) { done('Check your inbox for your results and the guide.'); return; }
+        if (hp.value) { done('Check your inbox for your full report and the guide.'); return; }
         var now = new Date(); var r = RESULTS[last.top];
         var payload = {
           tool: TOOL, first_name: first.value.trim(), email: email.value.trim(), phone: d,
-          results: r.head + ' Scores: ' + STAGES.map(function (s) { return STAGE_NAME[s] + ' ' + last.pct[s] + '%'; }).join(', ') + '. Read ' + r.part + ' of the guide.',
+          results: quizReport(last),
           last_date: now.toISOString().slice(0, 10),
           consent_proof: 'Box checked. Wording shown: ' + CONSENT_TEXT + ' Page: ' + location.href.split('#')[0] + '. Time: ' + now.toISOString(),
           place_id: '', gbp_score: '', gbp_gaps: '', gbp_rank: '', lead_value: '', yearly_loss: '',
@@ -257,13 +304,13 @@
         };
         if (cfg.mock || !cfg.webhook) {
           root.setAttribute('data-last-payload', JSON.stringify(payload));
-          done(cfg.mock ? 'Preview only: nothing was sent. On the live page this emails the results and the guide.' : 'Check your inbox for your results and the guide.');
+          done(cfg.mock ? 'Preview only: nothing was sent. On the live page this emails the full report and the guide.' : 'Check your inbox for your full report and the guide.');
           return;
         }
         send.disabled = true; send.textContent = 'Sending...';
         fetch(cfg.webhook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-          .then(function (res) { if (!res.ok) throw new Error(String(res.status)); done('Check your inbox for your results and the guide. It can take a few minutes.'); })
-          .catch(function () { send.disabled = false; send.textContent = 'Email me my results'; m.hidden = false; m.textContent = 'That did not go through. Try again, or call or text (877) 560-0450.'; });
+          .then(function (res) { if (!res.ok) throw new Error(String(res.status)); done('Check your inbox for your full report and the guide. It can take a few minutes.'); })
+          .catch(function () { send.disabled = false; send.textContent = 'Email me my full report'; m.hidden = false; m.textContent = 'That did not go through. Try again, or call or text (877) 560-0450.'; });
       });
       return b;
     }

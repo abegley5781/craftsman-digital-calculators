@@ -67,6 +67,36 @@
   function one(n) { return (Math.round(n * 10) / 10).toLocaleString('en-US'); }
   function up(n) { return Math.ceil(n - 1e-9).toLocaleString('en-US'); }
 
+  // The emailed full report (teaser on screen, full report by email: Andrew 2026-10-17).
+  // Plain text; the email keeps its line breaks. Their own numbers only, plus the labeled HBR line.
+  function leadReport(s, o) {
+    var L = ['What\'s a Lead Worth: your full report', ''];
+    if (o.leadSales !== null) {
+      L.push('ONE LEAD');
+      L.push('One lead is worth about ' + money(o.leadSales) + ' in sales' + (o.leadProfit !== null ? ' and ' + money(o.leadProfit) + ' in profit, at your ' + one(num(s.margin)) + '% margin.' : '. Add your margin to see the profit.'));
+      L.push('The math is ' + money(num(s.job)) + ' job x ' + one(num(s.visits)) + ' of 10 leads become visits x ' + one(num(s.sells)) + ' of 10 visits hire you. Every lead you lose or let go cold costs about that much.');
+      if (o.monthSales !== null) L.push('A month of leads (' + one(num(s.leads)) + ') is worth about ' + money(o.monthSales) + ' in sales.');
+      L.push(o.breakEven
+        ? 'Our Core plan (website + price calculator) is $' + CORE_SETUP + ' to set up and $' + CORE_MONTH + ' a month, ' + money(o.coreYear1) + ' the first year. At your numbers, that\'s the profit from ' + o.breakEven + ' lead' + (o.breakEven === 1 ? '' : 's') + ' a year.'
+        : 'Our Core plan (website + price calculator) is $' + CORE_SETUP + ' to set up and $' + CORE_MONTH + ' a month. With your margin, the tool shows how many leads a year cover it.');
+      L.push('');
+    }
+    if (o.missedYear !== null) {
+      L.push('MISSED CALLS');
+      L.push('You miss about ' + up(o.missedYear) + ' new-customer calls a year (' + one(num(s.calls)) + ' a week, ' + one(num(s.miss)) + ' of 10 missed).');
+      if (o.lostLeads !== null) L.push('By your guess, ' + up(o.lostLeads) + ' of them hire someone else before you call back' + (o.lostSales !== null ? ': about ' + money(o.lostSales) + ' of work a year' + (o.lostProfit !== null ? ', ' + money(o.lostProfit) + ' of it profit.' : '.') : '.'));
+      if (s.callback) L.push('You said you usually call back ' + ({ 'Within an hour': 'within an hour', 'Same day': 'the same day', 'Next day or later': 'the next day or later' }[s.callback] || s.callback.toLowerCase()) + '.');
+      L.push('For context (this isn\'t from your numbers), a 2011 Harvard Business Review study of 1.25 million web leads at 42 US companies found that firms that tried to reach a lead within an hour were nearly 7 times as likely to have a real conversation with the decision maker as firms that waited even one more hour, and more than 60 times as likely as firms that waited 24 hours or longer. Those were web leads, not homeowners calling a remodeler. ' + HBR_URL);
+      L.push('');
+    }
+    if (o.leadsMonth !== undefined) {
+      L.push('LEADS YOU NEED');
+      L.push('To reach ' + money(num(s.goal)) + ' a year you need ' + up(o.jobsYear) + ' jobs at ' + money(num(s.job)) + ' each. Each month that\'s about ' + up(o.leadsMonth) + ' leads, ' + up(o.estMonth) + ' estimate visits and ' + up(o.jobsMonth) + ' jobs sold.');
+      if (o.leadsNow !== null && o.leadsNow !== undefined) L.push('You get ' + one(o.leadsNow) + ' leads a month now, so you need ' + (o.leadsNow >= o.leadsMonth ? 'no more than you have.' : 'about ' + up(o.leadsMonth - o.leadsNow) + ' more a month.'));
+    }
+    return L.join('\n').trim();
+  }
+
   function resultsSentence(s, o) {
     var parts = [];
     if (o.leadSales !== null) parts.push('At your numbers, one lead is worth about ' + money(o.leadSales) + ' in sales' + (o.leadProfit !== null ? ' and ' + money(o.leadProfit) + ' in profit.' : '.'));
@@ -171,7 +201,7 @@
     var wrap = el('div', { class: 'cdl' });
     var card = el('div', { class: 'cdl-card' });
     card.appendChild(el('h3', { text: 'What is one lead worth to your business?' }));
-    card.appendChild(el('p', { class: 'cdl-lede', text: 'Put in your own numbers. The answers update as you type. No email needed to see them.' }));
+    card.appendChild(el('p', { class: 'cdl-lede', text: 'Put in your own numbers. The main numbers update as you type. No email needed to see them.' }));
 
     var exBar = el('div', { class: 'cdl-ex' }, [
       el('span', { text: 'Filled in with Andrew\'s own numbers from his kitchen and bath business (jobs ran $5,000 to $10,000; this uses the low end). Put in yours.' })
@@ -257,20 +287,12 @@
       if (o.leadSales === null) {
         outValue.appendChild(wait('Fill in job size and the two "out of 10" numbers to see what one lead is worth.'));
       } else {
+        // Teaser: the headline numbers. The math, profit and the Core comparison go in the emailed report.
         outValue.appendChild(el('div', { class: 'cdl-big' }, [
           stat(money(o.leadSales), 'one lead is worth in sales'),
-          o.leadProfit !== null ? stat(money(o.leadProfit), 'one lead is worth in profit') : stat('Add margin', 'to see profit per lead'),
           o.monthSales !== null ? stat(money(o.monthSales), 'in sales from a month of leads') : null
         ]));
-        outValue.appendChild(el('p', { class: 'cdl-line', text:
-          'That\'s ' + money(num(state.job)) + ' x ' + one(num(state.visits)) + ' of 10 visits x ' + one(num(state.sells)) + ' of 10 sold. Every lead you lose or let go cold costs about that much.' }));
-        if (o.breakEven) {
-          outValue.appendChild(el('p', { class: 'cdl-line', text:
-            'Our Core plan (website + price calculator) is $' + CORE_SETUP + ' to set up and $' + CORE_MONTH + ' a month, ' + money(o.coreYear1) + ' the first year. At your numbers, that\'s the profit from ' + o.breakEven + ' lead' + (o.breakEven === 1 ? '' : 's') + ' a year.' }));
-        } else {
-          outValue.appendChild(el('p', { class: 'cdl-line', text:
-            'Our Core plan (website + price calculator) is $' + CORE_SETUP + ' to set up and $' + CORE_MONTH + ' a month. Add your margin to see how many leads a year cover it.' }));
-        }
+        outValue.appendChild(el('p', { class: 'cdl-wait', text: 'In your full report: ' + (o.leadProfit !== null ? 'what one lead is worth in profit, ' : '') + 'the math behind it, and what our Core plan costs next to one lead.' }));
       }
 
       outMissed.innerHTML = '';
@@ -279,16 +301,9 @@
       } else {
         outMissed.appendChild(el('div', { class: 'cdl-big' }, [
           stat(up(o.missedYear), 'new-customer calls missed a year'),
-          o.lostLeads !== null ? stat(up(o.lostLeads), 'of them hire someone else') : stat('?', 'add how many hire someone else'),
-          o.lostSales !== null ? stat(money(o.lostSales), 'of work lost a year') : (o.lostLeads !== null ? stat('?', 'fill in the lead value numbers above') : null)
+          o.lostSales !== null ? stat(money(o.lostSales), 'of work lost a year') : (o.lostLeads !== null ? stat('?', 'fill in the lead value numbers above') : stat('?', 'add how many hire someone else'))
         ]));
-        if (o.lostProfit !== null) outMissed.appendChild(el('p', { class: 'cdl-line', text: 'That\'s about ' + money(o.lostProfit) + ' of profit a year, at your margin.' }));
-        if (state.callback && state.callback !== 'Within an hour') {
-          outMissed.appendChild(el('p', { class: 'cdl-ctx' }, [
-            'For context, this isn\'t from your numbers. A 2011 Harvard Business Review study of 1.25 million web leads at 42 US companies found that firms that tried to reach a lead within an hour were nearly 7 times as likely to have a real conversation with the decision maker as firms that waited even one more hour, and more than 60 times as likely as firms that waited 24 hours or longer. Those were web leads at consumer and business companies, not homeowners calling a remodeler. ',
-            el('a', { href: HBR_URL, target: '_blank', rel: 'noopener', text: 'Read the study' })
-          ]));
-        }
+        outMissed.appendChild(el('p', { class: 'cdl-wait', text: 'In your full report: how many of those people hire someone else' + (o.lostProfit !== null ? ', the profit you lose' : '') + ', and what a study found about how fast you call back.' }));
       }
 
       outNeed.innerHTML = '';
@@ -309,8 +324,7 @@
             el('span', { class: 'c', text: up(s.n) })
           ]);
         })));
-        outNeed.appendChild(el('p', { class: 'cdl-line', text: 'That\'s ' + up(o.jobsYear) + ' jobs a year at ' + money(num(state.job)) + ' each.' +
-          (o.leadsNow !== null && o.leadsNow !== undefined ? ' You get ' + one(o.leadsNow) + ' leads a month now, so you need ' + (o.leadsNow >= o.leadsMonth ? 'no more than you have.' : 'about ' + up(o.leadsMonth - o.leadsNow) + ' more a month.') : ' Put your leads a month in the Lead value tab to compare.') }));
+        outNeed.appendChild(el('p', { class: 'cdl-wait', text: 'In your full report: the jobs you need a year' + (o.leadsNow !== null && o.leadsNow !== undefined ? ' and how far your leads today are from the goal.' : '. Put your leads a month in the Lead value tab to compare them with the goal.') }));
       }
 
       optinSlot.hidden = o.leadSales === null;
@@ -328,11 +342,11 @@
         el('a', { href: cfg.terms, target: '_blank', rel: 'noopener', text: 'Terms of Service' }), ' and ',
         el('a', { href: cfg.privacy, target: '_blank', rel: 'noopener', text: 'Privacy Policy' }), '.'
       ])]);
-      var send = el('button', { type: 'button', class: 'cdl-btn', text: 'Email me my results' });
+      var send = el('button', { type: 'button', class: 'cdl-btn', text: 'Email me my full report' });
       var msg = el('p', { class: 'cdl-msg', role: 'alert' }); msg.hidden = true;
       var box1 = el('div', { class: 'cdl-optin' }, [
-        el('h4', { text: 'Email me my results + the Bottleneck Guide' }),
-        el('p', { class: 'cdl-lede', text: 'Get these numbers in your inbox, plus The Remodeler\'s Bottleneck Guide: a short read on whether leads, sales, production or operations is holding you back.' }),
+        el('h4', { text: 'Email me my full report + the Bottleneck Guide' }),
+        el('p', { class: 'cdl-lede', text: 'Get the full report: the math behind each number, what missed calls cost you in profit, and what Core costs next to one lead. Plus The Remodeler\'s Bottleneck Guide: a short read on whether leads, sales, production or operations is holding you back.' }),
         el('div', { class: 'cdl-grid' }, [
           el('div', { class: 'cdl-field' }, [el('label', { for: 'cdl-first', text: 'First name' }), first]),
           el('div', { class: 'cdl-field' }, [el('label', { for: 'cdl-email', text: 'Email *' }), email]),
@@ -347,15 +361,15 @@
         phone.classList.toggle('cdl-err', digits.length < 10);
         consent.classList.toggle('cdl-err', !box.checked);
         if (!emailOk || digits.length < 10) { msg.hidden = false; msg.textContent = 'Add a valid email and phone number.'; return; }
-        if (!box.checked) { msg.hidden = false; msg.textContent = 'Check the box to get your results by email.'; return; }
+        if (!box.checked) { msg.hidden = false; msg.textContent = 'Check the box to get your full report by email.'; return; }
         msg.hidden = true;
         function done(t) { box1.innerHTML = ''; box1.appendChild(el('h4', { text: 'Sent.' })); box1.appendChild(el('p', { class: 'cdl-done', text: t })); }
-        if (hp.value) { done('Check your inbox for your results and the guide.'); return; }
+        if (hp.value) { done('Check your inbox for your full report and the guide.'); return; }
         var now = new Date();
         var o = compute(state);
         var payload = {
           tool: TOOL, first_name: first.value.trim(), email: email.value.trim(), phone: digits,
-          results: resultsSentence(state, o) + (usingExample ? ' (Ran on Andrew\'s example numbers.)' : ''),
+          results: leadReport(state, o) + (usingExample ? '\n\n(Ran on Andrew\'s example numbers. Put in yours for your own report.)' : ''),
           last_date: now.toISOString().slice(0, 10),
           consent_proof: 'Box checked. Wording shown: ' + CONSENT_TEXT + ' Page: ' + location.href.split('#')[0] + '. Time: ' + now.toISOString(),
           place_id: '', gbp_score: '', gbp_gaps: '', gbp_rank: '',
@@ -365,13 +379,13 @@
         };
         if (cfg.mock || !cfg.webhook) {
           root.setAttribute('data-last-payload', JSON.stringify(payload));
-          done(cfg.mock ? 'Preview only: nothing was sent. On the live page this emails the results and the guide.' : 'Check your inbox for your results and the guide.');
+          done(cfg.mock ? 'Preview only: nothing was sent. On the live page this emails the full report and the guide.' : 'Check your inbox for your full report and the guide.');
           return;
         }
         send.disabled = true; send.textContent = 'Sending...';
         fetch(cfg.webhook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-          .then(function (r) { if (!r.ok) throw new Error('status ' + r.status); done('Check your inbox for your results and the guide. It can take a few minutes.'); })
-          .catch(function () { send.disabled = false; send.textContent = 'Email me my results'; msg.hidden = false; msg.textContent = 'That did not go through. Try again, or call or text (877) 560-0450.'; });
+          .then(function (r) { if (!r.ok) throw new Error('status ' + r.status); done('Check your inbox for your full report and the guide. It can take a few minutes.'); })
+          .catch(function () { send.disabled = false; send.textContent = 'Email me my full report'; msg.hidden = false; msg.textContent = 'That did not go through. Try again, or call or text (877) 560-0450.'; });
       });
       return box1;
     }

@@ -93,8 +93,9 @@
     rows.push({
       key: 'reviews', label: 'Reviews', max: 25, pts: Math.round(25 * reviewRatio),
       found: fmtInt(you.reviews || 0) + ' review' + ((you.reviews === 1) ? '' : 's'),
+      // Fix lines only appear in the emailed report, which GHL stores, so no Google numbers here.
       fix: top.length
-        ? 'The top ' + top.length + ' have ' + listJoin(topCounts) + '. Ask every customer for a review the week you finish their job.'
+        ? 'You have fewer reviews than the businesses ranking above you for this search. Ask every customer for a review the week you finish their job; a text with the review link works best.'
         : 'Ask every customer for a review the week you finish their job.',
       ok: reviewRatio >= 1
     });
@@ -146,7 +147,7 @@
       fix: !cat ? 'Pick a main category that names your trade, like Kitchen remodeler or General contractor.'
         : placeholder ? 'Google\'s public data doesn\'t show your exact category. Check it\'s set to your trade in your Google Business Profile.'
         : tradeCat ? 'Make sure this matches the work you want most.'
-        : '"' + cat + '" doesn\'t name your trade. If remodeling is your main work, pick a category like Kitchen remodeler, Bathroom remodeler or General contractor.',
+        : 'Your main category doesn\'t name your trade. If remodeling is your main work, pick a category like Kitchen remodeler, Bathroom remodeler or General contractor.',
       ok: catOk, soft: catOk
     });
     var open = you.status === 'OPERATIONAL';
@@ -163,6 +164,34 @@
   function rankText(search) {
     if (search.rank) return '#' + search.rank + ' for "' + search.query + '"';
     return 'not in the first ' + search.checked + ' for "' + search.query + '"';
+  }
+
+  // The emailed full report (teaser on screen, full report by email: Andrew 2026-10-17).
+  // It goes into the GHL field magnet_results, so it carries CD's own findings only: score,
+  // rank and advice. No Google review counts, rating, hours or phone (Places storage rule).
+  function gbpReport(you, search, scored) {
+    var fix = scored.rows.filter(function (r) { return !r.ok; }).sort(function (a, b) { return (b.max - b.pts) - (a.max - a.pts); });
+    var check = scored.rows.filter(function (r) { return r.ok && r.soft; });
+    var good = scored.rows.filter(function (r) { return r.ok && !r.soft; });
+    var lines = [
+      'Google profile check',
+      'Score: ' + scored.total + ' of 100 on our checklist.',
+      'Rank: ' + rankText(search) + '.',
+      ''
+    ];
+    if (fix.length) {
+      lines.push('What to fix, biggest first:');
+      fix.forEach(function (r, i) { lines.push((i + 1) + '. ' + r.label + ' (' + r.pts + ' of ' + r.max + '): ' + (r.reportFix || r.fix)); });
+      lines.push('');
+    }
+    if (check.length) {
+      lines.push('Worth a quick check:');
+      check.forEach(function (r) { lines.push('- ' + r.label + ': ' + (r.reportFix || r.fix)); });
+      lines.push('');
+    }
+    if (good.length) lines.push('Already good: ' + listJoin(good.map(function (r) { return r.label.toLowerCase(); })) + '.');
+    lines.push('Not scored: your Google posts and review replies. Google doesn\'t share those.');
+    return lines.join('\n');
   }
 
   function resultsSentence(you, search, scored) {
@@ -295,7 +324,7 @@
 
     var step1 = el('div', { class: 'cdm-card', style: 'border:0;padding:0' }, [
       el('h3', { text: 'How does your Google profile stack up against the top 3 near you?' }),
-      el('p', { class: 'cdm-lede', text: 'Find your business, pick what people search for and your town, and see your score in about 10 seconds. No email needed to see it.' }),
+      el('p', { class: 'cdm-lede', text: 'Find your business, pick what people search for and your town, and see your score in about 10 seconds. No email needed to see your score.' }),
       el('div', { class: 'cdm-row' }, [
         el('div', { class: 'cdm-field' }, [el('label', { for: 'cdm-name', text: 'Your business on Google' }), nameInput, list]),
         el('div', { class: 'cdm-field' }, [el('label', { for: 'cdm-trade', text: 'What people search to find you' }), tradeSel]),
@@ -446,9 +475,13 @@
           el('span', { class: 'cdm-pill ' + cls, text: word }),
           el('span', {}, [el('span', { class: 'lbl', text: row.label + ': ' }), el('span', { text: row.found })]),
           el('span', { class: 'pts', text: row.pts + ' / ' + row.max }),
-          (!row.ok || row.soft) ? el('span', { class: 'tip', text: row.fix }) : null
+          null // how to fix each one goes in the emailed report
         ]);
       })));
+      results.appendChild(el('div', { class: 'cdm-optin', style: 'gap:6px' }, [
+        el('p', { style: 'font-weight:700', text: 'Your full report: how to fix each one, biggest first, by email' }),
+        el('p', { class: 'cdm-lede', text: 'Plain steps for every item marked Fix or Check, in the order that matters most for your score.' })
+      ]));
 
       results.appendChild(el('p', { class: 'cdm-fine', text: 'This check can\'t see your Google posts or whether you reply to reviews. Google doesn\'t share those, so they aren\'t scored.' }));
       results.appendChild(el('div', { class: 'cdm-attr' }, [
@@ -473,11 +506,11 @@
         el('a', { href: cfg.terms, target: '_blank', rel: 'noopener', text: 'Terms of Service' }), ' and ',
         el('a', { href: cfg.privacy, target: '_blank', rel: 'noopener', text: 'Privacy Policy' }), '.'
       ])]);
-      var send = el('button', { type: 'button', class: 'cdm-btn', text: 'Email me my results' });
+      var send = el('button', { type: 'button', class: 'cdm-btn', text: 'Email me my full report' });
       var msg = el('p', { class: 'cdm-msg', role: 'alert' }); msg.hidden = true;
       var box1 = el('div', { class: 'cdm-optin' }, [
-        el('h4', { text: 'Email me my results + the Bottleneck Guide' }),
-        el('p', { class: 'cdm-lede', text: 'Get this checklist in your inbox, plus The Remodeler\'s Bottleneck Guide: a short read on whether leads, sales, production or operations is holding you back.' }),
+        el('h4', { text: 'Email me my full report + the Bottleneck Guide' }),
+        el('p', { class: 'cdm-lede', text: 'Get the full report: how to fix each item, biggest first. Plus The Remodeler\'s Bottleneck Guide: a short read on whether leads, sales, production or operations is holding you back.' }),
         el('div', { class: 'cdm-row' }, [
           el('div', { class: 'cdm-field' }, [el('label', { for: 'cdm-first', text: 'First name' }), first]),
           el('div', { class: 'cdm-field' }, [el('label', { for: 'cdm-email', text: 'Email *' }), email]),
@@ -493,14 +526,14 @@
         phone.classList.toggle('cdm-err', !phoneOk);
         consent.classList.toggle('cdm-err', !box.checked);
         if (!emailOk || !phoneOk) { msg.hidden = false; msg.textContent = 'Add a valid email and phone number.'; return; }
-        if (!box.checked) { msg.hidden = false; msg.textContent = 'Check the box to get your results by email.'; return; }
+        if (!box.checked) { msg.hidden = false; msg.textContent = 'Check the box to get your full report by email.'; return; }
         msg.hidden = true;
         var done = function (text) {
           box1.innerHTML = '';
           box1.appendChild(el('h4', { text: 'Sent.' }));
           box1.appendChild(el('p', { class: 'cdm-done', text: text }));
         };
-        if (hp.value) { done('Check your inbox for your results and the guide.'); return; }
+        if (hp.value) { done('Check your inbox for your full report and the guide.'); return; }
         var scored = last.scored;
         var now = new Date();
         var payload = {
@@ -508,25 +541,26 @@
           first_name: first.value.trim(),
           email: email.value.trim(),
           phone: phoneDigits,
-          results: resultsSentence(last.you, last.search, scored),
+          results: gbpReport(last.you, last.search, scored),
           last_date: now.toISOString().slice(0, 10),
           consent_proof: 'Box checked. Wording shown: ' + CONSENT_TEXT + ' Page: ' + location.href.split('#')[0] + '. Time: ' + now.toISOString(),
           place_id: (picked && picked.placeId) || '',
           gbp_score: String(scored.total),
-          gbp_gaps: scored.rows.filter(function (r) { return !r.ok; }).map(function (r) { return r.label + ': ' + r.found; }).join('; '),
+          // Labels only: the "found" text can hold Google's own numbers, which GHL must not store.
+          gbp_gaps: scored.rows.filter(function (r) { return !r.ok; }).map(function (r) { return r.label; }).join('; '),
           gbp_rank: rankText(last.search),
           lead_value: '', yearly_loss: '', bottleneck: '', site_url: '', site_mobile_score: ''
         };
         if (cfg.mock || !cfg.webhook) {
           root.setAttribute('data-last-payload', JSON.stringify(payload));
-          done(cfg.mock ? 'Preview only: nothing was sent. On the live page this emails the results and the guide.' : 'Check your inbox for your results and the guide.');
+          done(cfg.mock ? 'Preview only: nothing was sent. On the live page this emails the full report and the guide.' : 'Check your inbox for your full report and the guide.');
           return;
         }
         send.disabled = true; send.textContent = 'Sending...';
         fetch(cfg.webhook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-          .then(function (r) { if (!r.ok) throw new Error('status ' + r.status); done('Check your inbox for your results and the guide. It can take a few minutes.'); })
+          .then(function (r) { if (!r.ok) throw new Error('status ' + r.status); done('Check your inbox for your full report and the guide. It can take a few minutes.'); })
           .catch(function () {
-            send.disabled = false; send.textContent = 'Email me my results';
+            send.disabled = false; send.textContent = 'Email me my full report';
             msg.hidden = false; msg.textContent = 'That did not go through. Try again, or call or text (877) 560-0450.';
           });
       });

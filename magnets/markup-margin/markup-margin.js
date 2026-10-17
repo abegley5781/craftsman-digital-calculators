@@ -156,8 +156,8 @@
       el('div', { class: 'cdk-seg' }, [segPrice, segMargin]),
       el('div', { class: 'cdk-grid' }, [field('cost', 'Job cost ($)', 'Materials, labor and subs for this job.', '10,000'), fMargin, fPrice]),
       outMM,
-      el('h4', { text: 'Common markups and the margin they really give' }),
-      table
+      // Teaser on screen; the full multiplier table at their own cost goes in the emailed report.
+      el('p', { class: 'cdk-wait', text: 'In your full report: a table of common markups (1.20 to 2.00) and the margin each one really gives at your job cost.' })
     ]);
 
     // Hourly rate
@@ -216,29 +216,45 @@
           ? 'This price is below your cost. You lose ' + money(-r.profit) + ' on this job before overhead.'
           : 'Adding ' + pct(r.markup) + ' to your cost leaves you a ' + pct(r.margin) + ' margin. That ' + money(r.profit) + ' still has to pay for your overhead before any of it is profit.' }));
       }
-      renderTable();
-
       var h = hourly(st); last.hr = h;
       outHR.innerHTML = '';
       if (!h) outHR.appendChild(el('p', { class: 'cdk-wait', text: 'Fill in overhead, your pay, weeks a year and billable hours a week.' }));
       else {
         outHR.appendChild(el('div', { class: 'cdk-big' }, [
           stat(money(h.rate, true), 'per billable hour you need to charge'),
-          stat(Math.round(h.billable).toLocaleString('en-US'), 'billable hours a year'),
-          h.shortYear !== undefined ? stat(h.shortYear > 0 ? money(h.shortYear) : '$0', h.shortYear > 0 ? 'short a year at your current rate' : 'short: your rate covers it') : null
+          stat(Math.round(h.billable).toLocaleString('en-US'), 'billable hours a year')
         ]));
-        outHR.appendChild(el('p', { text: '(' + money(num(st.overhead)) + ' overhead + ' + money(num(st.pay)) + ' pay) / ' + Math.round(h.billable).toLocaleString('en-US') + ' hours = ' + money(h.base, true) + ' an hour' + (h.profitPct ? ', then ' + pct(h.profitPct) + ' profit on top = ' + money(h.rate, true) + '.' : '.') }));
+        outHR.appendChild(el('p', { class: 'cdk-wait', text: 'In your full report: the math behind your rate' + (h.shortYear !== undefined ? ', and how much a year your current rate leaves on the table' : '') + '.' }));
       }
       optinSlot.hidden = !r && !h;
       if (!optinSlot.firstChild) optinSlot.appendChild(buildOptin());
     }
 
+    // The emailed full report (teaser on screen, full report by email: Andrew 2026-10-17).
     function resultsSentence() {
-      var parts = [];
+      var L = ['Markup vs. margin: your full report', ''];
       var r = last.mm, h = last.hr;
-      if (r && r.markup !== null) parts.push('On a ' + money(num(st.cost)) + ' job: price ' + money(r.price) + ', markup ' + pct(r.markup) + ', margin ' + pct(r.margin) + '.');
-      if (h) parts.push('Your true hourly rate: ' + money(h.rate, true) + ' (' + Math.round(h.billable).toLocaleString('en-US') + ' billable hours a year)' + (h.shortYear > 0 ? ', about ' + money(h.shortYear) + ' a year more than your current rate brings in.' : '.'));
-      return parts.join(' ');
+      var cost = num(st.cost);
+      if (r && r.markup !== null) {
+        L.push('YOUR JOB');
+        L.push('On a ' + money(cost) + ' job cost, a ' + money(r.price) + ' price is a ' + pct(r.markup) + ' markup and a ' + pct(r.margin) + ' margin. That leaves ' + money(r.profit) + ' to pay your overhead before any of it is profit.');
+        L.push('');
+      }
+      var c = cost && cost > 0 ? cost : 10000;
+      L.push('COMMON MARKUPS ON A ' + money(c) + ' JOB');
+      [1.2, 1.25, 1.33, 1.5, 1.67, 2.0].forEach(function (m) {
+        var price = c * m;
+        L.push('Cost x ' + m.toFixed(2) + ' = ' + money(price) + '. Markup ' + pct(m - 1) + ', margin ' + pct((price - c) / price) + '.');
+      });
+      L.push('A 50% markup is only a 33% margin. Price from the margin you need, not the markup.');
+      if (h) {
+        L.push('', 'YOUR TRUE HOURLY RATE');
+        L.push('(' + money(num(st.overhead)) + ' overhead + ' + money(num(st.pay)) + ' pay) / ' + Math.round(h.billable).toLocaleString('en-US') + ' billable hours = ' + money(h.base, true) + ' an hour' + (h.profitPct ? '. With ' + pct(h.profitPct) + ' profit on top, ' + money(h.rate, true) + ' an hour.' : '.'));
+        if (h.shortYear !== undefined) L.push(h.shortYear > 0
+          ? 'At ' + money(num(st.now)) + ' an hour you come up about ' + money(h.shortYear) + ' a year short.'
+          : 'At ' + money(num(st.now)) + ' an hour your rate covers it.');
+      }
+      return L.join('\n');
     }
 
     function buildOptin() {
@@ -250,10 +266,10 @@
       var consent = el('div', { class: 'cdk-consent' }, [box, el('label', { for: 'cdk-consent' }, [CONSENT_TEXT + ' ',
         el('a', { href: cfg.terms, target: '_blank', rel: 'noopener', text: 'Terms of Service' }), ' and ',
         el('a', { href: cfg.privacy, target: '_blank', rel: 'noopener', text: 'Privacy Policy' }), '.'])]);
-      var send = el('button', { type: 'button', class: 'cdk-btn', text: 'Email me my results' });
+      var send = el('button', { type: 'button', class: 'cdk-btn', text: 'Email me my full report' });
       var m = el('p', { class: 'cdk-msg', role: 'alert' }); m.hidden = true;
       var b = el('div', { class: 'cdk-optin' }, [
-        el('h4', { text: 'Email me my results + the Bottleneck Guide' }),
+        el('h4', { text: 'Email me my full report + the Bottleneck Guide' }),
         el('div', { class: 'cdk-grid' }, [
           el('div', { class: 'cdk-field' }, [el('label', { for: 'cdk-first', text: 'First name' }), first]),
           el('div', { class: 'cdk-field' }, [el('label', { for: 'cdk-email', text: 'Email *' }), email]),
@@ -263,10 +279,10 @@
         var ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim()); var dg = phone.value.replace(/\D/g, '');
         email.classList.toggle('cdk-err', !ok); phone.classList.toggle('cdk-err', dg.length < 10); consent.classList.toggle('cdk-err', !box.checked);
         if (!ok || dg.length < 10) { m.hidden = false; m.textContent = 'Add a valid email and phone number.'; return; }
-        if (!box.checked) { m.hidden = false; m.textContent = 'Check the box to get your results by email.'; return; }
+        if (!box.checked) { m.hidden = false; m.textContent = 'Check the box to get your full report by email.'; return; }
         m.hidden = true;
         function done(t) { b.innerHTML = ''; b.appendChild(el('h4', { text: 'Sent.' })); b.appendChild(el('p', { class: 'cdk-done', text: t })); }
-        if (hp.value) { done('Check your inbox for your results and the guide.'); return; }
+        if (hp.value) { done('Check your inbox for your full report and the guide.'); return; }
         var now = new Date();
         var payload = {
           tool: TOOL, first_name: first.value.trim(), email: email.value.trim(), phone: dg,
@@ -276,13 +292,13 @@
         };
         if (cfg.mock || !cfg.webhook) {
           root.setAttribute('data-last-payload', JSON.stringify(payload));
-          done(cfg.mock ? 'Preview only: nothing was sent. On the live page this emails the results and the guide.' : 'Check your inbox for your results and the guide.');
+          done(cfg.mock ? 'Preview only: nothing was sent. On the live page this emails the full report and the guide.' : 'Check your inbox for your full report and the guide.');
           return;
         }
         send.disabled = true; send.textContent = 'Sending...';
         fetch(cfg.webhook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-          .then(function (res) { if (!res.ok) throw new Error(String(res.status)); done('Check your inbox for your results and the guide. It can take a few minutes.'); })
-          .catch(function () { send.disabled = false; send.textContent = 'Email me my results'; m.hidden = false; m.textContent = 'That did not go through. Try again, or call or text (877) 560-0450.'; });
+          .then(function (res) { if (!res.ok) throw new Error(String(res.status)); done('Check your inbox for your full report and the guide. It can take a few minutes.'); })
+          .catch(function () { send.disabled = false; send.textContent = 'Email me my full report'; m.hidden = false; m.textContent = 'That did not go through. Try again, or call or text (877) 560-0450.'; });
       });
       return b;
     }

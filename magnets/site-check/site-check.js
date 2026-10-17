@@ -37,8 +37,9 @@
       rows.push({ key: 'loads', label: 'Site loads', ok: false, found: 'Didn\'t load', fix: 'Your site didn\'t load for us. Check it on your phone right now; if it\'s down for us, it may be down for homeowners.' });
       return rows;
     }
-    rows.push({ key: 'domain', label: 'Your address stays yours', ok: !d.offDomain,
-      found: d.offDomain ? 'Sends people to ' + d.finalHost : 'Yes',
+    // Label wording: Andrew, 2026-10-17 ("URL: Open correct site").
+    rows.push({ key: 'domain', label: 'URL: Opens correct site', ok: !d.offDomain,
+      found: d.offDomain ? 'No, it sends people to ' + d.finalHost : 'Yes',
       fix: 'Your web address sends visitors to a different site (' + d.finalHost + '). Homeowners who type your name land somewhere else. Fix this first: call whoever registered your domain.' });
     rows.push({ key: 'https', label: 'Secure lock (https)', ok: !!d.https,
       found: d.https ? 'Yes' : 'No lock',
@@ -56,6 +57,24 @@
       found: d.hasForm && d.quoteLink ? 'Form and "' + d.quoteLink + '"' : d.hasForm ? 'Form' : d.quoteLink ? '"' + d.quoteLink + '"' : 'Not found in your home page\'s code',
       fix: 'Give people a way to reach you at 10 at night, when they plan projects: a short form or a "Get an estimate" button.' });
     return rows;
+  }
+
+  // The emailed full report (teaser on screen, full report by email: Andrew 2026-10-17).
+  function siteReport(d, rows) {
+    var order = { domain: 0, loads: 0, https: 1, tel: 2, form: 3, speed: 4 };
+    var bad = rows.filter(function (r) { return !r.ok; }).sort(function (a, b) { return (a.warn ? 1 : 0) - (b.warn ? 1 : 0) || order[a.key] - order[b.key]; });
+    var good = rows.filter(function (r) { return r.ok; });
+    var L = ['Website check for ' + (d.finalUrl || d.entered), ''];
+    var speed = rows.filter(function (r) { return r.key === 'speed'; })[0];
+    if (speed) L.push('Mobile speed is ' + speed.found + '. Google PageSpeed Insights on a phone scores 90 to 100 as good, 50 to 89 as needs work, and under 50 as poor.', '');
+    if (bad.length) {
+      L.push('What to fix, worst first:');
+      bad.forEach(function (r, i) { L.push((i + 1) + '. ' + r.label + ' (' + r.found + '). ' + r.fix); });
+      L.push('');
+    }
+    if (good.length) L.push('Already good:', good.map(function (r) { return '- ' + r.label; }).join('\n'));
+    L.push('We checked your home page only.');
+    return L.join('\n');
   }
 
   function resultsSentence(d, rows) {
@@ -189,9 +208,13 @@
         return el('div', { class: 'cds-check' }, [
           el('span', { class: 'cds-pill ' + cls, text: word }),
           el('span', {}, [el('span', { class: 'lbl', text: r.label + ': ' }), el('span', { text: r.found })]),
-          r.ok ? null : el('span', { class: 'tip', text: r.fix })
+          null // how to fix each one goes in the emailed report
         ]);
       })));
+      if (fixes) results.appendChild(el('div', { class: 'cds-optin', style: 'gap:6px' }, [
+        el('p', { style: 'font-weight:700', text: 'Your full report: how to fix each one, by email' }),
+        el('p', { class: 'cds-lede', text: 'Plain steps for every item marked Fix or Close, worst first.' })
+      ]));
       results.appendChild(el('p', { class: 'cds-fine' }, ['Speed test by ', el('a', { href: 'https://pagespeed.web.dev/', target: '_blank', rel: 'noopener', text: 'Google PageSpeed Insights' }), '.']));
       results.appendChild(buildOptin());
       results.hidden = false;
@@ -207,10 +230,10 @@
       var consent = el('div', { class: 'cds-consent' }, [box, el('label', { for: 'cds-consent' }, [CONSENT_TEXT + ' ',
         el('a', { href: cfg.terms, target: '_blank', rel: 'noopener', text: 'Terms of Service' }), ' and ',
         el('a', { href: cfg.privacy, target: '_blank', rel: 'noopener', text: 'Privacy Policy' }), '.'])]);
-      var send = el('button', { type: 'button', class: 'cds-btn', text: 'Email me my results' });
+      var send = el('button', { type: 'button', class: 'cds-btn', text: 'Email me my full report' });
       var m = el('p', { class: 'cds-msg', role: 'alert' }); m.hidden = true;
       var b = el('div', { class: 'cds-optin' }, [
-        el('h4', { text: 'Email me my results + the Bottleneck Guide' }),
+        el('h4', { text: 'Email me my full report + the Bottleneck Guide' }),
         el('div', { class: 'cds-grid' }, [
           el('div', { class: 'cds-field' }, [el('label', { for: 'cds-first', text: 'First name' }), first]),
           el('div', { class: 'cds-field' }, [el('label', { for: 'cds-email', text: 'Email *' }), email]),
@@ -220,27 +243,27 @@
         var ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim()); var dg = phone.value.replace(/\D/g, '');
         email.classList.toggle('cds-err', !ok); phone.classList.toggle('cds-err', dg.length < 10); consent.classList.toggle('cds-err', !box.checked);
         if (!ok || dg.length < 10) { m.hidden = false; m.textContent = 'Add a valid email and phone number.'; return; }
-        if (!box.checked) { m.hidden = false; m.textContent = 'Check the box to get your results by email.'; return; }
+        if (!box.checked) { m.hidden = false; m.textContent = 'Check the box to get your full report by email.'; return; }
         m.hidden = true;
         function done(t) { b.innerHTML = ''; b.appendChild(el('h4', { text: 'Sent.' })); b.appendChild(el('p', { class: 'cds-done', text: t })); }
-        if (hp.value) { done('Check your inbox for your results and the guide.'); return; }
+        if (hp.value) { done('Check your inbox for your full report and the guide.'); return; }
         var now = new Date();
         var payload = {
           tool: TOOL, first_name: first.value.trim(), email: email.value.trim(), phone: dg,
-          results: resultsSentence(last.d, last.rows), last_date: now.toISOString().slice(0, 10),
+          results: siteReport(last.d, last.rows), last_date: now.toISOString().slice(0, 10),
           consent_proof: 'Box checked. Wording shown: ' + CONSENT_TEXT + ' Page: ' + location.href.split('#')[0] + '. Time: ' + now.toISOString(),
           place_id: '', gbp_score: '', gbp_gaps: '', gbp_rank: '', lead_value: '', yearly_loss: '', bottleneck: '',
           site_url: last.d.entered || '', site_mobile_score: typeof last.d.mobileScore === 'number' ? String(last.d.mobileScore) : ''
         };
         if (cfg.mock || !cfg.webhook) {
           root.setAttribute('data-last-payload', JSON.stringify(payload));
-          done(cfg.mock ? 'Preview only: nothing was sent. On the live page this emails the results and the guide.' : 'Check your inbox for your results and the guide.');
+          done(cfg.mock ? 'Preview only: nothing was sent. On the live page this emails the full report and the guide.' : 'Check your inbox for your full report and the guide.');
           return;
         }
         send.disabled = true; send.textContent = 'Sending...';
         fetch(cfg.webhook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-          .then(function (res) { if (!res.ok) throw new Error(String(res.status)); done('Check your inbox for your results and the guide. It can take a few minutes.'); })
-          .catch(function () { send.disabled = false; send.textContent = 'Email me my results'; m.hidden = false; m.textContent = 'That did not go through. Try again, or call or text (877) 560-0450.'; });
+          .then(function (res) { if (!res.ok) throw new Error(String(res.status)); done('Check your inbox for your full report and the guide. It can take a few minutes.'); })
+          .catch(function () { send.disabled = false; send.textContent = 'Email me my full report'; m.hidden = false; m.textContent = 'That did not go through. Try again, or call or text (877) 560-0450.'; });
       });
       return b;
     }
