@@ -128,7 +128,7 @@
     var photos = Math.min(10, you.photos || 0);
     rows.push({
       key: 'photos', label: 'Photos', max: 15, pts: Math.round(15 * photos / 10),
-      found: photos >= 10 ? '10 or more' : photos + ' of 10',
+      found: photos >= 10 ? '10+ (Google only shows us 10)' : photos + ' of 10',
       fix: 'Add real photos of your finished jobs. Google shares up to 10 with this check, so 10 is full marks.',
       ok: photos >= 10
     });
@@ -152,7 +152,7 @@
     });
     var open = you.status === 'OPERATIONAL';
     rows.push({
-      key: 'status', label: 'Shows as open', max: 5, pts: open ? 5 : 0,
+      key: 'status', label: 'Google shows you as open', max: 5, pts: open ? 5 : 0,
       found: open ? 'Open' : (you.status === 'CLOSED_TEMPORARILY' ? 'Temporarily closed' : 'Not open'),
       fix: 'Google shows you as closed. Fix this first in your Google profile.',
       ok: open
@@ -189,7 +189,7 @@
       check.forEach(function (r) { lines.push('- ' + r.label + ': ' + (r.reportFix || r.fix)); });
       lines.push('');
     }
-    if (good.length) lines.push('Already good: ' + listJoin(good.map(function (r) { return r.label.toLowerCase(); })) + '.');
+    if (good.length) lines.push('Already good:', good.map(function (r) { return '- ' + r.label; }).join('\n'));
     lines.push('Not scored: your Google posts and review replies. Google doesn\'t share those.');
     return lines.join('\n');
   }
