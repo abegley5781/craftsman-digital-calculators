@@ -30,6 +30,13 @@
     'including automated texts and prerecorded voicemails. Agreeing is not required to buy anything. ' +
     'Msg frequency varies. Msg & data rates may apply. Reply STOP to opt out, HELP for help.';
   var ANDREW = { job: 5000, visits: 7.5, sells: 6 };
+  // Sample margin (Andrew 2026-10-17: "use an ideal margin based on hormozi or michael stone").
+  // Stone, not Hormozi: Hormozi's 80% gross-margin rule is for low-material services
+  // (research/active-hormozi-gross-vs-net-margin). Stone's own example, quoted from his site:
+  // "if the estimated cost for a job is $10,000, they'll multiply the $10,000 x 1.50 and arrive
+  // at a $15,000 sales price" = a 33% gross margin. Same article: overhead runs "25% to 54% of
+  // their revenue", so the result is gross profit before overhead, never net.
+  var STONE = { margin: 33, url: 'https://www.markupandprofit.com/articles/how-much-should-a-contractor-charge/' };
   var HBR_URL = 'https://hbr.org/2011/03/the-short-life-of-online-sales-leads';
 
   // ---- Math. Pure functions; every input is the contractor's own number. ----
@@ -73,18 +80,22 @@
     var L = ['What\'s a Lead Worth: your full report', ''];
     if (o.leadSales !== null) {
       L.push('ONE LEAD');
-      L.push('One lead is worth about ' + money(o.leadSales) + ' in sales' + (o.leadProfit !== null ? ' and ' + money(o.leadProfit) + ' in profit, at your ' + one(num(s.margin)) + '% margin.' : '. Add your margin to see the profit.'));
+      L.push('One lead is worth about ' + money(o.leadSales) + ' in sales' + (o.leadProfit !== null ? ' and ' + money(o.leadProfit) + ' in gross profit (before overhead), at a ' + one(num(s.margin)) + '% margin.' : '. Add your margin to see the gross profit.'));
       L.push('The math is ' + money(num(s.job)) + ' job x ' + one(num(s.visits)) + ' of 10 leads become visits x ' + one(num(s.sells)) + ' of 10 visits hire you. Every lead you lose or let go cold costs about that much.');
       if (o.monthSales !== null) L.push('A month of leads (' + one(num(s.leads)) + ') is worth about ' + money(o.monthSales) + ' in sales.');
       L.push(o.breakEven
-        ? 'Our Core plan (website + price calculator) is $' + CORE_SETUP + ' to set up and $' + CORE_MONTH + ' a month, ' + money(o.coreYear1) + ' the first year. At your numbers, that\'s the profit from ' + o.breakEven + ' lead' + (o.breakEven === 1 ? '' : 's') + ' a year.'
+        ? 'Our Core plan (website + price calculator) is $' + CORE_SETUP + ' to set up and $' + CORE_MONTH + ' a month, ' + money(o.coreYear1) + ' the first year. At your numbers, that\'s the gross profit from ' + o.breakEven + ' lead' + (o.breakEven === 1 ? '' : 's') + ' a year.'
         : 'Our Core plan (website + price calculator) is $' + CORE_SETUP + ' to set up and $' + CORE_MONTH + ' a month. With your margin, the tool shows how many leads a year cover it.');
+      if (o.leadProfit !== null) {
+        L.push('Gross profit is what\'s left after the job\'s costs, before overhead. Michael Stone (Markup & Profit) puts a typical remodeler\'s overhead at 25% to 54% of revenue, so gross profit isn\'t take-home pay.');
+        if (s.marginSample) L.push('The 33% margin is a sample. It\'s a 1.5 markup, Michael Stone\'s example in Markup & Profit (' + STONE.url + '). Put in your own margin for your own numbers.');
+      }
       L.push('');
     }
     if (o.missedYear !== null) {
       L.push('MISSED CALLS');
       L.push('You miss about ' + up(o.missedYear) + ' new-customer calls a year (' + one(num(s.calls)) + ' a week, ' + one(num(s.miss)) + ' of 10 missed).');
-      if (o.lostLeads !== null) L.push('By your guess, ' + up(o.lostLeads) + ' of them hire someone else before you call back' + (o.lostSales !== null ? ': about ' + money(o.lostSales) + ' of work a year' + (o.lostProfit !== null ? ', ' + money(o.lostProfit) + ' of it profit.' : '.') : '.'));
+      if (o.lostLeads !== null) L.push('By your guess, ' + up(o.lostLeads) + ' of them hire someone else before you call back' + (o.lostSales !== null ? ': about ' + money(o.lostSales) + ' of work a year' + (o.lostProfit !== null ? ', ' + money(o.lostProfit) + ' of it gross profit (before overhead).' : '.') : '.'));
       if (s.callback) L.push('You said you usually call back ' + ({ 'Within an hour': 'within an hour', 'Same day': 'the same day', 'Next day or later': 'the next day or later' }[s.callback] || s.callback.toLowerCase()) + '.');
       L.push('For context (this isn\'t from your numbers), a 2011 Harvard Business Review study of 1.25 million web leads at 42 US companies found that firms that tried to reach a lead within an hour were nearly 7 times as likely to have a real conversation with the decision maker as firms that waited even one more hour, and more than 60 times as likely as firms that waited 24 hours or longer. Those were web leads, not homeowners calling a remodeler. ' + HBR_URL);
       L.push('');
@@ -175,7 +186,7 @@
       privacy: root.getAttribute('data-privacy-url') || 'https://craftsman-digital.com/privacy',
       mock: String(root.getAttribute('data-mode') || '').toLowerCase() === 'mock'
     };
-    var state = { job: ANDREW.job, visits: ANDREW.visits, sells: ANDREW.sells, margin: '', leads: '', calls: '', miss: '', lost: '', callback: '', goal: '' };
+    var state = { job: ANDREW.job, visits: ANDREW.visits, sells: ANDREW.sells, margin: STONE.margin, marginSample: true, leads: '', calls: '', miss: '', lost: '', callback: '', goal: '' };
     var usingExample = true;
     var inputs = {};
 
@@ -191,7 +202,9 @@
       input.value = state[key] === '' ? '' : String(state[key]);
       input.addEventListener('input', function () {
         state[key] = input.value;
-        if (usingExample && (key === 'job' || key === 'visits' || key === 'sells')) { usingExample = false; exBar.hidden = true; }
+        if (key === 'margin' && state.marginSample) { state.marginSample = false; marginNote.hidden = true; }
+        if (usingExample && (key === 'job' || key === 'visits' || key === 'sells')) { usingExample = false; andrewNote.hidden = true; }
+        exBar.hidden = andrewNote.hidden && marginNote.hidden;
         update();
       });
       inputs[key] = input;
@@ -203,13 +216,17 @@
     card.appendChild(el('h3', { text: 'What is one lead worth to your business?' }));
     card.appendChild(el('p', { class: 'cdl-lede', text: 'Put in your own numbers. The main numbers update as you type. No email needed to see them.' }));
 
+    var andrewNote = el('span', { text: 'Job size and the two out-of-10 numbers are Andrew\'s own, from his kitchen and bath business (jobs ran $5,000 to $10,000; this uses the low end).' });
+    var marginNote = el('span', {}, ['Sample margin: 33% (a 1.5 markup, ',
+      el('a', { href: STONE.url, target: '_blank', rel: 'noopener', style: 'color:var(--cdm-steel)', text: 'Michael Stone\'s example in Markup & Profit' }), ').']);
     var exBar = el('div', { class: 'cdl-ex' }, [
-      el('span', { text: 'Filled in with Andrew\'s own numbers from his kitchen and bath business (jobs ran $5,000 to $10,000; this uses the low end). Put in yours.' })
+      el('span', { style: 'display:grid;gap:4px;min-width:0' }, [andrewNote, marginNote, el('span', { text: 'Put in yours.' })])
     ]);
-    var clearBtn = el('button', { type: 'button', class: 'cdl-link', text: 'Clear his numbers' });
+    var clearBtn = el('button', { type: 'button', class: 'cdl-link', text: 'Clear the sample numbers' });
     clearBtn.addEventListener('click', function () {
-      ['job', 'visits', 'sells'].forEach(function (k) { state[k] = ''; inputs[k].value = ''; });
-      usingExample = false; exBar.hidden = true; update(); inputs.job.focus();
+      ['job', 'visits', 'sells', 'margin'].forEach(function (k) { state[k] = ''; inputs[k].value = ''; });
+      state.marginSample = false; usingExample = false; andrewNote.hidden = true; marginNote.hidden = true; exBar.hidden = true;
+      update(); inputs.job.focus();
     });
     exBar.appendChild(clearBtn);
 
@@ -238,7 +255,7 @@
       field('job', 'Average job size ($)', null, { ph: '12,000' }),
       field('visits', 'Of 10 leads, how many become estimate visits?', 'Out of 10. Halves are fine.', { ph: '7' }),
       field('sells', 'Of 10 estimates, how many hire you?', 'Out of 10.', { ph: '4' }),
-      field('margin', 'Gross margin (%)', 'What\'s left after materials and labor. Optional.', { ph: '35' })
+      field('margin', 'Gross margin (%)', 'What\'s left after materials, labor and subs, before overhead.', { ph: '33' })
     ]);
 
     // Panel: lead value
@@ -292,7 +309,7 @@
           stat(money(o.leadSales), 'one lead is worth in sales'),
           o.monthSales !== null ? stat(money(o.monthSales), 'in sales from a month of leads') : null
         ]));
-        outValue.appendChild(el('p', { class: 'cdl-wait', text: 'In your full report: ' + (o.leadProfit !== null ? 'what one lead is worth in profit, ' : '') + 'the math behind it, and what our Core plan costs next to one lead.' }));
+        outValue.appendChild(el('p', { class: 'cdl-wait', text: 'In your full report: ' + (o.leadProfit !== null ? 'what one lead is worth in gross profit, ' : '') + 'the math behind it, and what our Core plan costs next to one lead.' }));
       }
 
       outMissed.innerHTML = '';
@@ -303,7 +320,7 @@
           stat(up(o.missedYear), 'new-customer calls missed a year'),
           o.lostSales !== null ? stat(money(o.lostSales), 'of work lost a year') : (o.lostLeads !== null ? stat('?', 'fill in the lead value numbers above') : stat('?', 'add how many hire someone else'))
         ]));
-        outMissed.appendChild(el('p', { class: 'cdl-wait', text: 'In your full report: how many of those people hire someone else' + (o.lostProfit !== null ? ', the profit you lose' : '') + ', and what a study found about how fast you call back.' }));
+        outMissed.appendChild(el('p', { class: 'cdl-wait', text: 'In your full report: how many of those people hire someone else' + (o.lostProfit !== null ? ', the gross profit you lose' : '') + ', and what a study found about how fast you call back.' }));
       }
 
       outNeed.innerHTML = '';
@@ -346,7 +363,7 @@
       var msg = el('p', { class: 'cdl-msg', role: 'alert' }); msg.hidden = true;
       var box1 = el('div', { class: 'cdl-optin' }, [
         el('h4', { text: 'Email me my full report + the Bottleneck Guide' }),
-        el('p', { class: 'cdl-lede', text: 'Get the full report: the math behind each number, what missed calls cost you in profit, and what Core costs next to one lead. Plus The Remodeler\'s Bottleneck Guide: a short read on whether leads, sales, production or operations is holding you back.' }),
+        el('p', { class: 'cdl-lede', text: 'Get the full report: the math behind each number, what missed calls cost you in gross profit, and what Core costs next to one lead. Plus The Remodeler\'s Bottleneck Guide: a short read on whether leads, sales, production or operations is holding you back.' }),
         el('div', { class: 'cdl-grid' }, [
           el('div', { class: 'cdl-field' }, [el('label', { for: 'cdl-first', text: 'First name' }), first]),
           el('div', { class: 'cdl-field' }, [el('label', { for: 'cdl-email', text: 'Email *' }), email]),
