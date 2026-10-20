@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Countertop Price Calculator Demo | Craftsman Digital</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Montserrat:wght@700&family=Source+Sans+3:wght@400;700&display=swap">
+<style>
+  body{margin:0;background:#eef1f2;font-family:"Source Sans 3",Arial,sans-serif;color:#1f2328}
+  .demo-bar{background:#2d3646;color:#f2efe9;padding:14px max(16px,env(safe-area-inset-left,0px));font-size:15px;line-height:1.5}
+  .demo-bar div{max-width:36rem;margin:0 auto;display:grid;gap:6px}
+  .demo-bar b{color:#e4c995}
+  .demo-bar a{color:#c2a26d;font-weight:700}
+</style>
+</head>
+<body>
+<!-- Demo for countertop shops (First Yes, Lane D, D2). Mock mode: nothing is sent. -->
+<div class="demo-bar"><div>
+  <span><b>You're trying the demo.</b> This is the price calculator Craftsman Digital builds for countertop shops, shown with a sample shop's name and Colorado price levels. Answer it the way a homeowner would. Nothing you type is sent anywhere.</span>
+  <a href="https://craftsman-digital.com/how-it-works?ref=countertop-demo">Back to Craftsman Digital &rarr;</a>
+</div></div>
+<div id="cewRoot" data-calc="countertop" data-mode="mock"
+  data-business-name="Sample Stone &amp; Quartz"
+  data-phone=""
+  data-terms-url="https://craftsman-digital.com/terms"
+  data-privacy-url="https://craftsman-digital.com/privacy"
+  data-service-area="your area"
+  data-color-primary="#3d6273"
+  data-color-dark="#1f2a30"
+  data-color-accent="#8c6d46"
+  data-response-time="within one business day"
+></div>
+<script src="countertop-engine.js"></script>
+</body>
+</html>

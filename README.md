@@ -125,3 +125,27 @@ values are new for kitchen — not pulled from any report, just built to spread
 realistically across the 3 CVV bands above. If real per-client data ever
 becomes available (a live kitchen quote form, actual job costs), replace
 these with the same recover-real-content approach bathroom used.
+
+## Countertop calculator
+
+`countertop-engine.js`, for countertop-only shops (stone and quartz
+fabricators). Same shell as kitchen (form, consent, honeypot, webhook,
+Powered-by line, `data-price-adjustment`, `data-response-time`,
+`data-booking-status`, `ref`, notes, start timeframe, preview mode), but the
+price is measured: square feet (kitchen shape + island, or typed square feet,
+plus vanity tops) x the shop's price per square foot for the stone level, plus
+edge, cutouts, tear-out, backsplash and waterfall, then the price dial, rounded
+to $100. A minimum billed square feet setting covers small jobs.
+
+It boots only on `data-calc="countertop"`, with the shop's own numbers in
+`data-countertop-rates` (deep-merged over the defaults; level names, level
+prices and every line item). It never reads `data-tiers` or `data-rates`, so it
+can sit on a page with the other engines. `data-mode="mock"` runs the full
+homeowner flow and posts nothing (demo pages). The payload is kitchen's keys
+with `trade_config: "countertop"`, plus `sqft_low`, `sqft_high`, `stone_level`.
+
+Default numbers are CD's demo numbers from Colorado shops' published prices;
+every one is sourced in ICM-WORKSPACE
+`workspaces/craftsman-digital/sprints/2026-10-20-first-yes/cd-sprint7-d-countertop-plan.md`.
+Demo: `countertop-demo.html` (sample shop, mock mode). Full header and the
+pricing function (`CountertopCalc.price`) are in the engine file.
