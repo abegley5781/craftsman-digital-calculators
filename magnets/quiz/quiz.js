@@ -27,7 +27,7 @@
     'Msg frequency varies. Msg & data rates may apply. Reply STOP to opt out, HELP for help.';
 
   var STAGES = ['leads', 'sales', 'production', 'operations'];
-  var STAGE_NAME = { leads: 'Leads', sales: 'Sales', production: 'Production', operations: 'Operations' };
+  var STAGE_NAME = { leads: 'Marketing', sales: 'Sales', production: 'Production', operations: 'Operations' };
 
   var QUESTIONS = [
     { stage: 'leads', text: 'The phone doesn\'t ring enough.' },
@@ -77,9 +77,9 @@
   // Result screens. "part" names the guide section to read.
   var RESULTS = {
     leads: {
-      head: 'Your bottleneck is leads.',
+      head: 'Your bottleneck is marketing.',
       why: 'Not enough of the right people are finding you. Good work doesn\'t help if the phone doesn\'t ring, and waiting on referrals keeps you in feast and famine.',
-      part: 'Part 2: Leads',
+      part: 'Part 2: Marketing',
       fit: 'This is the problem our Core plan is built for: a website and price calculator that give the people who look you up a reason to call, with every lead saved in one place.',
       link: { text: 'See how Core works', href: 'https://craftsman-digital.com/how-it-works' }
     },

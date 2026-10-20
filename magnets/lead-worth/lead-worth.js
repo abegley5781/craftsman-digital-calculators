@@ -216,7 +216,7 @@
     card.appendChild(el('h3', { text: 'What is one lead worth to your business?' }));
     card.appendChild(el('p', { class: 'cdl-lede', text: 'Put in your own numbers. The main numbers update as you type. No email needed to see them.' }));
 
-    var andrewNote = el('span', { text: 'Job size and the two out-of-10 numbers are Andrew\'s own, from his kitchen and bath business (jobs ran $5,000 to $10,000; this uses the low end).' });
+    var andrewNote = el('span', { text: 'Job size and the two out-of-10 numbers are from a remodeling company Andrew works with (its jobs ran $5,000 to $10,000; this uses the low end).' });
     var marginNote = el('span', {}, ['Sample margin: 33% (a 1.5 markup, ',
       el('a', { href: STONE.url, target: '_blank', rel: 'noopener', style: 'color:var(--cdm-steel)', text: 'Michael Stone\'s example in Markup & Profit' }), ').']);
     var exBar = el('div', { class: 'cdl-ex' }, [
@@ -386,7 +386,7 @@
         var o = compute(state);
         var payload = {
           tool: TOOL, first_name: first.value.trim(), email: email.value.trim(), phone: digits,
-          results: leadReport(state, o) + (usingExample ? '\n\n(Ran on Andrew\'s example numbers. Put in yours for your own report.)' : ''),
+          results: leadReport(state, o) + (usingExample ? '\n\n(Ran on the example numbers. Put in yours for your own report.)' : ''),
           last_date: now.toISOString().slice(0, 10),
           consent_proof: 'Box checked. Wording shown: ' + CONSENT_TEXT + ' Page: ' + location.href.split('#')[0] + '. Time: ' + now.toISOString(),
           place_id: '', gbp_score: '', gbp_gaps: '', gbp_rank: '',
