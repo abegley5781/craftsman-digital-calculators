@@ -5,7 +5,8 @@
  * Embed:
  * <div data-cd-magnet="site-check" data-api-url="https://cd-magnets.<account>.workers.dev" data-webhook-url="..."></div>
  * <script src="https://abegley5781.github.io/craftsman-digital-calculators/magnets/site-check/site-check.js"></script>
- * data-mode="mock" runs on sample data and posts nothing (previews).
+ * data-mode="mock" runs on sample data and posts nothing (previews); data-mock-case="redirect"
+ * shows an address that sends people to another site.
  *
  * A browser page can't read another business's website (the browser blocks
  * it), so the cd-magnets Worker does the reading and the PageSpeed call:
@@ -25,11 +26,22 @@
     'including automated texts and prerecorded voicemails. Agreeing is not required to buy anything. ' +
     'Msg frequency varies. Msg & data rates may apply. Reply STOP to opt out, HELP for help.';
 
-  function mockCheck(url) {
+  // Mock only: data-mock-case="redirect" shows an address that sends people to another site.
+  function mockCheck(url, mockCase) {
+    if (mockCase === 'redirect') {
+      return { entered: url, finalUrl: 'https://www.casino-bonus-slots.example/', loads: true, https: true, offDomain: true,
+        finalHost: 'www.casino-bonus-slots.example', hasTel: false, hasForm: false, quoteLink: '', mobileScore: 71, lcpSeconds: 3.2 };
+    }
     return { entered: url, finalUrl: 'https://www.sample-remodeling.com/', loads: true, https: true, offDomain: false,
       finalHost: 'www.sample-remodeling.com', hasTel: false, hasForm: true, quoteLink: 'Get a Free Estimate',
       mobileScore: 38, lcpSeconds: 7.9 };
   }
+
+  // The address the report is about. When the entered address sends people to
+  // another site, every other check would describe that other site, so the
+  // tool names the entered address and stops after the redirect row.
+  function checkedAddress(d) { return d.offDomain ? d.entered : (d.finalUrl || d.entered); }
+  var OFF_DOMAIN_NOTE = 'We stopped there. Speed, the lock, tap-to-call and a way to reach you would all be checks of someone else\'s site. Once your address opens your own site, run the check again.';
 
   function checkSite(d) {
     var rows = [];
@@ -41,6 +53,7 @@
     rows.push({ key: 'domain', label: 'URL: Opens correct site', ok: !d.offDomain,
       found: d.offDomain ? 'No, it sends people to ' + d.finalHost : 'Yes',
       fix: 'Your web address sends visitors to a different site (' + d.finalHost + '). Homeowners who type your name land somewhere else. Fix this first: call whoever registered your domain.' });
+    if (d.offDomain) return rows;
     rows.push({ key: 'https', label: 'Secure lock (https)', ok: !!d.https,
       found: d.https ? 'Yes' : 'No lock',
       fix: 'Browsers mark sites without the lock as "Not secure". Most hosts turn it on for free (look for SSL in your host\'s settings).' });
@@ -64,7 +77,7 @@
     var order = { domain: 0, loads: 0, https: 1, tel: 2, form: 3, speed: 4 };
     var bad = rows.filter(function (r) { return !r.ok; }).sort(function (a, b) { return (a.warn ? 1 : 0) - (b.warn ? 1 : 0) || order[a.key] - order[b.key]; });
     var good = rows.filter(function (r) { return r.ok; });
-    var L = ['Website check for ' + (d.finalUrl || d.entered), ''];
+    var L = ['Website check for ' + checkedAddress(d), ''];
     var speed = rows.filter(function (r) { return r.key === 'speed'; })[0];
     if (speed) L.push('Mobile speed is ' + speed.found + '. Google PageSpeed Insights on a phone scores 90 to 100 as good, 50 to 89 as needs work, and under 50 as poor.', '');
     if (bad.length) {
@@ -72,6 +85,7 @@
       bad.forEach(function (r, i) { L.push((i + 1) + '. ' + r.label + ' (' + r.found + '). ' + r.fix); });
       L.push('');
     }
+    if (d.offDomain) { L.push(OFF_DOMAIN_NOTE); return L.join('\n'); }
     if (good.length) L.push('Already good:', good.map(function (r) { return '- ' + r.label; }).join('\n'));
     L.push('We checked your home page only.');
     return L.join('\n');
@@ -80,7 +94,7 @@
   function resultsSentence(d, rows) {
     var fixes = rows.filter(function (r) { return !r.ok; }).map(function (r) { return r.label.toLowerCase(); });
     var speed = rows.filter(function (r) { return r.key === 'speed'; })[0];
-    return 'Website check for ' + (d.finalUrl || d.entered) + '. ' + (speed ? 'Mobile speed: ' + speed.found + '. ' : '') +
+    return 'Website check for ' + checkedAddress(d) + '. ' + (speed ? 'Mobile speed: ' + speed.found + '. ' : '') +
       (fixes.length ? 'To fix: ' + fixes.join(', ') + '.' : 'Nothing big to fix.');
   }
 
@@ -156,7 +170,8 @@
       webhook: root.getAttribute('data-webhook-url') || '',
       terms: root.getAttribute('data-terms-url') || 'https://craftsman-digital.com/terms',
       privacy: root.getAttribute('data-privacy-url') || 'https://craftsman-digital.com/privacy',
-      mock: String(root.getAttribute('data-mode') || '').toLowerCase() === 'mock'
+      mock: String(root.getAttribute('data-mode') || '').toLowerCase() === 'mock',
+      mockCase: root.getAttribute('data-mock-case') || ''
     };
     var wrap = el('div', { class: 'cds' });
     var card = el('div', { class: 'cds-card' });
@@ -178,7 +193,7 @@
       urlIn.classList.toggle('cds-err', !url);
       if (!url) { msg.hidden = false; msg.textContent = 'Put in a web address, like yourbusiness.com.'; return; }
       msg.hidden = true; go.disabled = true; go.textContent = 'Checking... (up to 30 s)';
-      var p = cfg.mock ? new Promise(function (res) { setTimeout(function () { res(mockCheck(url)); }, 600); })
+      var p = cfg.mock ? new Promise(function (res) { setTimeout(function () { res(mockCheck(url, cfg.mockCase)); }, 600); })
         : fetch(cfg.api + '/site-check?url=' + encodeURIComponent(url)).then(function (r) { return r.json(); });
       p.then(function (d) {
         go.disabled = false; go.textContent = 'Check my website';
@@ -195,12 +210,15 @@
       var s = typeof d.mobileScore === 'number' ? d.mobileScore : null;
       var color = s === null ? 'var(--cdm-line)' : s >= 90 ? 'var(--cdm-good)' : s >= 50 ? 'var(--cdm-warn)' : 'var(--cdm-fix)';
       var fixes = rows.filter(function (r) { return !r.ok; }).length;
+      // Redirected away: no speed gauge (it would be the other site's speed), and the heading names the problem.
       results.appendChild(el('div', { class: 'cds-head' }, [
-        el('div', { class: 'cds-gauge', style: '--p:' + (s || 0) + ';--g:' + color, role: 'img', 'aria-label': 'Mobile speed ' + (s === null ? 'unknown' : s + ' of 100') },
+        d.offDomain ? null : el('div', { class: 'cds-gauge', style: '--p:' + (s || 0) + ';--g:' + color, role: 'img', 'aria-label': 'Mobile speed ' + (s === null ? 'unknown' : s + ' of 100') },
           [el('div', {}, [el('b', { text: s === null ? '?' : String(s) }), el('span', { text: 'mobile speed' })])]),
         el('div', { style: 'display:grid;gap:6px;min-width:0' }, [
-          el('h4', { text: fixes ? fixes + ' thing' + (fixes === 1 ? '' : 's') + ' to fix on ' + (d.finalHost || d.entered) : 'Your site passed every check' }),
-          el('p', { class: 'cds-fine', text: 'Speed is Google\'s own PageSpeed test on a phone: 90 to 100 is good, 50 to 89 needs work, under 50 is poor. Other checks look at your home page only.' })
+          el('h4', { text: d.offDomain ? 'Your web address sends people to another site'
+            : fixes ? fixes + ' thing' + (fixes === 1 ? '' : 's') + ' to fix on ' + (d.finalHost || d.entered) : 'Your site passed every check' }),
+          el('p', { class: 'cds-fine', text: d.offDomain ? OFF_DOMAIN_NOTE
+            : 'Speed is Google\'s own PageSpeed test on a phone: 90 to 100 is good, 50 to 89 needs work, under 50 is poor. Other checks look at your home page only.' })
         ])
       ]));
       results.appendChild(el('div', { class: 'cds-checks' }, rows.map(function (r) {
@@ -215,7 +233,7 @@
         el('p', { style: 'font-weight:700', text: 'Your full report: how to fix each one, by email' }),
         el('p', { class: 'cds-lede', text: 'Plain steps for every item marked Fix or Close, worst first.' })
       ]));
-      results.appendChild(el('p', { class: 'cds-fine' }, ['Speed test by ', el('a', { href: 'https://pagespeed.web.dev/', target: '_blank', rel: 'noopener', text: 'Google PageSpeed Insights' }), '.']));
+      if (!d.offDomain) results.appendChild(el('p', { class: 'cds-fine' }, ['Speed test by ', el('a', { href: 'https://pagespeed.web.dev/', target: '_blank', rel: 'noopener', text: 'Google PageSpeed Insights' }), '.']));
       results.appendChild(buildOptin());
       results.hidden = false;
       if (!noScroll) { try { results.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }
@@ -253,7 +271,7 @@
           results: siteReport(last.d, last.rows), last_date: now.toISOString().slice(0, 10),
           consent_proof: 'Box checked. Wording shown: ' + CONSENT_TEXT + ' Page: ' + location.href.split('#')[0] + '. Time: ' + now.toISOString(),
           place_id: '', gbp_score: '', gbp_gaps: '', gbp_rank: '', lead_value: '', yearly_loss: '', bottleneck: '',
-          site_url: last.d.entered || '', site_mobile_score: typeof last.d.mobileScore === 'number' ? String(last.d.mobileScore) : ''
+          site_url: last.d.entered || '', site_mobile_score: !last.d.offDomain && typeof last.d.mobileScore === 'number' ? String(last.d.mobileScore) : ''
         };
         if (cfg.mock || !cfg.webhook) {
           root.setAttribute('data-last-payload', JSON.stringify(payload));
@@ -270,10 +288,10 @@
 
     // Preview only: data-autorun="<url>" opens the mock with that address already checked.
     var auto = root.getAttribute('data-autorun');
-    if (cfg.mock && auto) { urlIn.value = auto; var d0 = mockCheck(normalizeUrl(auto)); last = { d: d0, rows: checkSite(d0) }; render(true); }
+    if (cfg.mock && auto) { urlIn.value = auto; var d0 = mockCheck(normalizeUrl(auto), cfg.mockCase); last = { d: d0, rows: checkSite(d0) }; render(true); }
   }
 
-  window.CDMagnetSite = { checkSite: checkSite, resultsSentence: resultsSentence, normalizeUrl: normalizeUrl };
+  window.CDMagnetSite = { checkSite: checkSite, resultsSentence: resultsSentence, siteReport: siteReport, normalizeUrl: normalizeUrl };
 
   function boot() { injectCss(); Array.prototype.forEach.call(document.querySelectorAll('[data-cd-magnet="site-check"]'), init); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
