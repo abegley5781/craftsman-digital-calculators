@@ -510,6 +510,13 @@
     return line;
   }
 
+  // GA4 conversion (Lane C, C13 "website best practices", 2026-10-20): after the lead is saved,
+  // send generate_lead if the page has Google Analytics (gtag). A no-op without gtag; never in
+  // preview or demo mode, since those never post.
+  function trackLead(trade, ref) {
+    try { if (typeof window.gtag === 'function') window.gtag('event', 'generate_lead', { trade: trade, ref: ref || 'none' }); } catch (e) {}
+  }
+
   function init(root) {
     var cfg = {
       businessName: root.getAttribute('data-business-name') || '',
@@ -941,6 +948,7 @@
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
         }).then(function (res) {
           if (!res.ok) throw new Error('bad status ' + res.status);
+          trackLead('general', cfg.ref);
         }).catch(function () {
           resultMsg.hidden = false;
           resultMsg.className = 'cew-msg cew-error';
