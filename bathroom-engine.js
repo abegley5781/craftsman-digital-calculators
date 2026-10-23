@@ -701,7 +701,7 @@
         }).catch(function () {
           resultMsg.hidden = false;
           resultMsg.className = 'cew-msg cew-error';
-          resultMsg.textContent = 'We had trouble saving your info just now — if you don’t hear from us, please call ' + cfg.phone + ' directly.';
+          resultMsg.textContent = 'We had trouble saving your info just now. If you don’t hear from us, please call ' + cfg.phone + ' directly.';
         });
       }
     });

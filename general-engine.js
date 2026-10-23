@@ -807,12 +807,6 @@
         return !(roomEmpty() && ROOM_KEYS.indexOf(q.key) >= 0);
       });
     }
-    function roomComplete() {
-      return ROOM_KEYS.every(function (k) {
-        var q = QUESTIONS.filter(function (x) { return x.key === k; })[0];
-        return !active(q) || !!pickedOption(k);
-      });
-    }
     function answersComplete() {
       return missingQuestions().every(function (q) { return q.price === false; });
     }
@@ -831,7 +825,7 @@
       ]),
       el('p', { class: 'cew-promise', style: 'color:' + cfg.colorPrimary, html: cfg.preview
         ? 'Preview only. Try answers and price settings here. Nothing is sent or saved.'
-        : 'See your price range right here, instantly. We\'ll also email you a copy with your answers, so you can come back to it.' })
+        : 'See your price range right here, instantly. We&rsquo;ll also email you a copy with your answers, so you can come back to it.' })
     ]);
 
     var qgrid = el('div', { class: 'cew-qgrid' });
