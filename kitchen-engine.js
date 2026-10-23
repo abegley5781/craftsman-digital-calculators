@@ -600,6 +600,8 @@
       callNowLink.hidden = cfg.bookingClosed;
       form.hidden = true;
       result.hidden = false;
+      // The form is long on a phone; once it hides, bring the result into view.
+      try { if (card.getBoundingClientRect().top < 0) card.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
 
       var payload = {
         first_name: firstVal, last_name: lastVal, email: emailVal, phone: phoneVal,
