@@ -7,7 +7,8 @@
  * and the size, scope and plumbing questions swap their options per space.
  * Spec (every number DECIDED 2026-10-08): ICM-WORKSPACE/workspaces/
  * craftsman-digital/outreach/general-calculator-v2-room-model-2026-10-08.md,
- * sections 2, 4, 5 and 7. Whole house (section 10) is not in this engine.
+ * sections 2, 4, 5 and 7. Whole house and "add another room" (section 10)
+ * were added 2026-10-23 (Channel B Finish, Lane C, C2); see below.
  *
  * Per-client Custom Code snippet needed on the GHL page:
  *
@@ -55,7 +56,8 @@
  *
  * data-scope-copy is optional: replaces the results-screen copy per scope,
  * keyed by scope key (refresh, partial, full, open, rooms, redo, slab,
- * structural, basementUnder, secondStory), each {"heading","intro",
+ * structural, basementUnder, secondStory; whole house: wholeRefresh,
+ * wholePartial, wholeFull, wholeLarge; several rooms: several), each {"heading","intro",
  * "bullets":[...]}. "{space}" in the text is filled with the space name.
  * Defaults are in SCOPE_COPY below.
  *
@@ -69,9 +71,41 @@
  * `score` has no meaning here, so it carries the $/sq ft rate used (after
  * finish, before age and ZIP), or "" for an in-person outcome.
  *
+ * Whole house (2026-10-23): "Whole house" is the last pick in the space
+ * question. It swaps the size question to home size, hides the plumbing
+ * question, and shows three of its own: kitchen (none or one of the three
+ * live kitchen bands), full bathrooms and half baths to redo. Price, all
+ * from numbers already here:
+ *   rest of house = (home size - kitchen area - bath areas) x the living
+ *                   room rate for the scope x finish x home-age (remodel)
+ *   kitchen       = wholeHouse.kitchen band (CKB's live kitchen bands, from
+ *                   Cost vs. Value 2025; not finish- or age-adjusted)
+ *   each bathroom = the plumbing full / half bath add-on (Andrew's bath bands)
+ *   then ZIP, client adjustment, minimum job and rounding as above. Areas
+ *   come from the bath and kitchen calculators' own size picks (full bath
+ *   51-100 sq ft, half 25-50, kitchen 100-200): the low end takes off the
+ *   large areas, the high end the small ones. Over 3,500 sq ft or 4+ full
+ *   bathrooms = the in-person estimate outcome.
+ *
+ * Add another room (2026-10-23): under the questions, "+ Add another room"
+ * saves the room answered so far and clears space, size, scope and plumbing
+ * for the next (finish, home age and start time carry over). On submit each
+ * room is priced on its own (ZIP, adjustment and rounding per room, no
+ * minimum), the total is their sum with the minimum job applied once, and the
+ * results list each room's range. Rooms needing an in-person estimate are
+ * listed but not in the total. Nothing changes for a visitor who never adds a
+ * room: same questions, same result, same payload. A several-room lead posts
+ * once, with the same keys: estimate_low/high and price_range are the total,
+ * answers_summary names each room and its range, score is "", tier_label is
+ * "Several rooms (N)", space and scope list each room's label, plus room_count.
+ * Preview mode shows the running total live as rooms are added.
+ *
+ * data-mode="mock" (2026-10-23): the full homeowner flow, posts nothing, and
+ * says so under the result (demo and review pages). Same as countertop.
+ *
  * For tests, the pricing is a pure function: GeneralCalc.price(rates,
  * answers, opts) -- on window.GeneralCalc in a browser, module.exports in
- * node.
+ * node. GeneralCalc.priceRooms(rates, rooms, year, opts) prices several.
  */
 (function () {
   var DEFAULT_EXPECTATION_NOTE = 'Every remodel is a trade between three things: the price, how fast it gets done, and the quality of the work. You can usually have two of the three. When you talk with us, tell us which one matters most to you.';
@@ -119,7 +153,18 @@
     // One egress window when space = basement and scope = finished with rooms.
     egress: { std: [3900, 7800], high: [5500, 9100] },
     additionFloor: null,
-    minJob: [3000, 5000]
+    minJob: [3000, 5000],
+    // Whole house (section 10). sizes = finished living space, sq ft; a size
+    // past the last one is the in-person outcome. The rest of the house uses
+    // spaces.living.rates. kitchen = CKB's live kitchen bands (kitchen page
+    // data-tiers; Cost vs. Value 2025, see README). Areas are the bath and
+    // kitchen calculators' size picks. "4 or more" full bathrooms = in-person.
+    wholeHouse: {
+      sizes: [[800, 1200], [1200, 1800], [1800, 2500], [2500, 3500]],
+      kitchen: { refresh: [18000, 35000], full: [55000, 100000], custom: [120000, 220000] },
+      kitchenArea: [100, 200],
+      bathArea: { full: [51, 100], half: [25, 50] }
+    }
   };
 
   // Scopes that show the in-person estimate result instead of a price.
@@ -167,8 +212,16 @@
       { label: 'One room, about 12x16 (150 to 250 sq ft)', say: 'one room, about 12x16 (150 to 250 sq ft)' },
       { label: 'Large room, about 16x20 (250 to 400 sq ft)', say: 'a large room, about 16x20 (250 to 400 sq ft)' },
       { label: 'Suite size (400 to 600 sq ft)', say: 'suite size (400 to 600 sq ft)' }
+    ]},
+    // Whole house: its own questions below (kitchen, baths); sizes are wholeHouse.sizes.
+    { value: 'whole', label: 'Whole house (most rooms, plus kitchen and bathrooms)', say: 'a whole-house remodel', noun: 'house', group: 'whole', sizes: [
+      { label: 'Under 1,200 sq ft (800 to 1,200)', say: 'an 800 to 1,200 sq ft house' },
+      { label: '1,200 to 1,800 sq ft', say: 'a 1,200 to 1,800 sq ft house' },
+      { label: '1,800 to 2,500 sq ft', say: 'a 1,800 to 2,500 sq ft house' },
+      { label: '2,500 to 3,500 sq ft', say: 'a 2,500 to 3,500 sq ft house' }
     ]}
   ];
+  var WHOLE_OVER = { value: 'over', label: 'Over 3,500 sq ft', say: 'a house over 3,500 sq ft' };
 
   // Scope options per space group (spec section 2, Q3).
   var SCOPES = {
@@ -192,8 +245,35 @@
       { value: 'slab', label: 'Slab or crawlspace foundation', say: 'on a slab or crawlspace foundation' },
       { value: 'basementUnder', label: 'Full basement under it', say: 'with a full basement under it' },
       { value: 'secondStory', label: 'Second story', say: 'a second story' }
+    ],
+    // Whole house: how far the work goes in the rooms that aren't the kitchen or a bath.
+    whole: [
+      { value: 'refresh', label: 'Refresh the rest of the house: paint, flooring, trim, lighting, doors', say: 'a refresh of the rest of the house (paint, flooring, trim, lighting, doors)' },
+      { value: 'partial', label: 'Partial: refresh plus drywall repair, electrical changes, some windows', say: 'a partial remodel of the rest of the house (refresh plus drywall repair, electrical changes, some windows)' },
+      { value: 'full', label: 'Full gut: the rest of the house down to the studs and built back new', say: 'a full gut of the rest of the house, down to the studs' }
     ]
   };
+
+  // Whole-house questions (shown only when the space is "whole").
+  var KITCHEN_OPTS = [
+    { value: 'none', label: 'No kitchen work', say: 'no kitchen work' },
+    { value: 'refresh', label: 'Kitchen refresh: keep the cabinets and layout, new counters and surfaces', say: 'a kitchen refresh' },
+    { value: 'full', label: 'Full kitchen remodel: new cabinets, counters and appliances, same layout', say: 'a full kitchen remodel' },
+    { value: 'custom', label: 'Custom kitchen: layout changes and premium materials', say: 'a custom kitchen' }
+  ];
+  var FULL_BATH_OPTS = [
+    { value: '0', label: 'None', say: 'no full bathrooms' },
+    { value: '1', label: '1', say: '1 full bathroom' },
+    { value: '2', label: '2', say: '2 full bathrooms' },
+    { value: '3', label: '3', say: '3 full bathrooms' },
+    { value: '4plus', label: '4 or more', say: '4 or more full bathrooms' }
+  ];
+  var HALF_BATH_OPTS = [
+    { value: '0', label: 'None', say: 'no half baths' },
+    { value: '1', label: '1', say: '1 half bath' },
+    { value: '2', label: '2', say: '2 half baths' }
+  ];
+  function isWhole(space) { return space === 'whole'; }
 
   var PLUMBING = [
     { value: 'none', label: 'None', say: 'no new plumbing' },
@@ -217,6 +297,7 @@
       if (!s) return [];
       var opts = s.sizes.map(function (z, i) { return { value: String(i), label: z.label, say: z.say }; });
       var mid = s.sizes[notSureIndex(currentRatesFor(space), s.sizes.length)] || s.sizes[0];
+      if (isWhole(space)) opts.push(WHOLE_OVER);
       opts.push({ value: 'notsure', label: 'Not sure', say: 'size not sure (priced as ' + mid.say + ')' });
       return opts;
     }},
@@ -230,10 +311,14 @@
       { value: 'high', label: 'High-end', say: 'high-end finishes', lean: 'quality' },
       { value: 'notsure', label: 'Not sure yet', say: 'finishes not decided yet (priced as mid-range)' }
     ]},
-    { key: 'plumbing', label: 'Are you adding any plumbing?', options: function (space) {
+    { key: 'plumbing', label: 'Are you adding any plumbing?', when: function (space) { return !isWhole(space); }, options: function (space) {
       if (space !== 'laundry') return PLUMBING;
       return PLUMBING.map(function (o) { return o.value === 'wetbar' ? PLUMBING_LAUNDRY : o; });
     }},
+    // Whole house only (when): the kitchen and bathrooms, priced from their own bands.
+    { key: 'kitchen', label: 'What about the kitchen?', wide: true, when: isWhole, options: KITCHEN_OPTS },
+    { key: 'fullBaths', label: 'Full bathrooms to redo', when: isWhole, options: FULL_BATH_OPTS },
+    { key: 'halfBaths', label: 'Half baths to redo', when: isWhole, options: HALF_BATH_OPTS },
     { key: 'year', label: 'When was your home built?', options: [
       { value: 'y1990', label: '1990 or newer', say: 'home built 1990 or newer' },
       { value: 'y1970', label: '1970 to 1989', say: 'home built 1970 to 1989' },
@@ -268,7 +353,17 @@
       'Foundation, framing and roof', 'Windows, doors and outside finish to match', 'Insulation, drywall, wiring and heat', 'Flooring, trim and paint inside' ] },
     structural: { heading: 'This job needs an in-person estimate', intro: 'A dormer, new stairs or stronger floor framing changes the structure of the house. Those jobs vary too much to price from a few questions, so the next step is an in-person estimate. We have your answers and will reach out to set it up.', bullets: [] },
     basementUnder: { heading: 'This job needs an in-person estimate', intro: 'A full basement under an addition changes how the whole job is dug and built. It varies too much to price from a few questions, so the next step is an in-person estimate. We have your answers and will reach out to set it up.', bullets: [] },
-    secondStory: { heading: 'This job needs an in-person estimate', intro: 'A second story has to be carried by the house below it, and every house is different. It varies too much to price from a few questions, so the next step is an in-person estimate. We have your answers and will reach out to set it up.', bullets: [] }
+    secondStory: { heading: 'This job needs an in-person estimate', intro: 'A second story has to be carried by the house below it, and every house is different. It varies too much to price from a few questions, so the next step is an in-person estimate. We have your answers and will reach out to set it up.', bullets: [] },
+    // Whole house (draft, Claude, 2026-10-23, for Andrew to edit).
+    wholeRefresh: { heading: 'What this range is best suited for', intro: 'This range covers the kitchen and bathrooms you picked, plus a refresh of the rest of the house without opening up the walls.', bullets: [
+      'The kitchen and bathroom work you picked', 'Fresh paint on walls, ceilings and trim', 'New flooring, trim and doors', 'New light fixtures' ] },
+    wholePartial: { heading: 'What this range is best suited for', intro: 'This range covers the kitchen and bathrooms you picked, plus a partial remodel of the rest of the house: past the surface in places, without taking it down to the studs.', bullets: [
+      'The kitchen and bathroom work you picked', 'Paint, new flooring, trim, doors and lighting', 'Drywall repair and some new drywall', 'Added outlets, switches or circuits, and some new windows' ] },
+    wholeFull: { heading: 'What this range is best suited for', intro: 'This range covers the kitchen and bathrooms you picked, plus taking the rest of the house down to the studs and building it back new.', bullets: [
+      'The kitchen and bathroom work you picked', 'New insulation, drywall and wiring', 'Heat extended from your current system', 'New flooring, trim, doors, lighting, and windows where needed' ] },
+    wholeLarge: { heading: 'This job needs an in-person estimate', intro: 'A house this size, or with this many bathrooms, varies too much to price from a few questions, so the next step is an in-person estimate. We have your answers and will reach out to set it up.', bullets: [] },
+    // Several rooms: the total (draft, Claude, 2026-10-23).
+    several: { heading: 'How this total is figured', intro: 'Each room is priced on its own from your answers, then added up. The in-person estimate firms up the whole job.', bullets: [] }
   };
 
   var NOTE_OLDER_HOME = 'Older homes can hide surprises like asbestos, old wiring or rot behind the walls. Those aren\'t in this range. The in-person estimate checks for them.';
@@ -277,7 +372,7 @@
   // The rates object the page is using, so the size question's "Not sure"
   // say text can name the right size. Set by init(); defaults until then.
   var activeRates = DEFAULT_RATES;
-  function currentRatesFor(space) { return (activeRates.spaces || {})[space] || {}; }
+  function currentRatesFor(space) { return (isWhole(space) ? activeRates.wholeHouse : (activeRates.spaces || {})[space]) || {}; }
   function notSureIndex(sp, n) {
     var i = Number(sp && sp.notSure);
     if (sp && sp.notSure != null && isFinite(i) && i >= 0 && i < n) return Math.floor(i);
@@ -304,8 +399,11 @@
   // an in-person-estimate scope, else { low, high, rate, egress, noEgress }
   // in whole dollars rounded to $100 (egress is the one-window price after
   // ZIP and adjustment, or null; noEgress is the range without it).
+  // Whole house: answers also carry kitchen, fullBaths, halfBaths (see
+  // priceWhole). opts.noMin skips the minimum job (one room of several).
   function price(rates, a, opts) {
     opts = opts || {};
+    if (isWhole(a.space)) return priceWhole(rates, a, opts);
     if (IN_PERSON[a.scope]) return { inPerson: true };
     var sp = (rates.spaces || {})[a.space];
     if (!sp || !sp.sizes || !sp.rates) return null;
@@ -346,7 +444,7 @@
       eg = highEnd ? (rates.egress.high || rates.egress.std) : rates.egress.std;
     }
 
-    var minJob = rates.minJob || [0, 0];
+    var minJob = opts.noMin ? [0, 0] : (rates.minJob || [0, 0]);
     function settle(lo, hi) {
       lo = Math.max(lo * zip * f, minJob[0] || 0);
       hi = Math.max(hi * zip * f, minJob[1] || 0);
@@ -364,7 +462,79 @@
     };
   }
 
-  var GeneralCalc = { DEFAULT_RATES: DEFAULT_RATES, mergeRates: mergeRates, price: price };
+  // Whole house (section 10, built 2026-10-23). answers = { space: 'whole',
+  // size: '0'..'3', 'over' or 'notsure', scope (refresh, partial, full),
+  // finish, kitchen (none, refresh, full, custom), fullBaths ('0'..'3' or
+  // '4plus'), halfBaths ('0'..'2'), year }. Over the last size or 4+ full
+  // bathrooms = { inPerson: true, copy: 'wholeLarge' }. Otherwise the same
+  // shape as price(), with egress null.
+  function priceWhole(rates, a, opts) {
+    var wh = rates.wholeHouse || {};
+    if (a.size === 'over' || a.fullBaths === '4plus') return { inPerson: true, copy: 'wholeLarge' };
+    var sizes = wh.sizes || [];
+    var size = sizes[a.size === 'notsure' ? notSureIndex(wh, sizes.length) : Number(a.size)];
+    var rate = Number((((rates.spaces || {}).living || {}).rates || {})[a.scope]);
+    var finishF = Number((rates.finish || {})[a.finish]);
+    var ageF = Number(((rates.age || {})[(rates.ageGroup || {})[a.scope] || 'remodel'] || {})[a.year]);
+    var kitchen = a.kitchen === 'none' ? [0, 0] : (wh.kitchen || {})[a.kitchen];
+    var nFull = a.fullBaths === '' || a.fullBaths == null ? NaN : Number(a.fullBaths);
+    var nHalf = a.halfBaths === '' || a.halfBaths == null ? NaN : Number(a.halfBaths);
+    if (!size || !rate || !finishF || !ageF || !kitchen || !isFinite(nFull) || !isFinite(nHalf)) return null;
+
+    // The rest of the house: home size less the kitchen and bath areas. The
+    // low end takes off the large areas, the high end the small ones.
+    var ka = a.kitchen === 'none' ? [0, 0] : (wh.kitchenArea || [0, 0]);
+    var fa = (wh.bathArea || {}).full || [0, 0];
+    var ha = (wh.bathArea || {}).half || [0, 0];
+    var restLow = Math.max(0, size[0] - ka[1] - nFull * fa[1] - nHalf * ha[1]);
+    var restHigh = Math.max(0, size[1] - ka[0] - nFull * fa[0] - nHalf * ha[0]);
+    var rateUsed = rate * finishF;
+    var low = restLow * rateUsed * ageF + kitchen[0];
+    var high = restHigh * rateUsed * ageF + kitchen[1];
+    // Bathrooms: the plumbing add-on bands (Andrew's bath bands), by finish.
+    var highEnd = a.finish === 'high';
+    [['full', nFull], ['half', nHalf]].forEach(function (b) {
+      var p = (rates.plumbing || {})[b[0]];
+      if (!p || !b[1]) return;
+      var band = highEnd ? (p.high || p.std) : p.std;
+      low += b[1] * band[0]; high += b[1] * band[1];
+    });
+
+    var zip = Number(opts.zipMult) || 1;
+    var f = 1 + (Number(opts.adjustmentPct) || 0) / 100;
+    var minJob = opts.noMin ? [0, 0] : (rates.minJob || [0, 0]);
+    var out = {
+      low: Math.round(Math.max(low * zip * f, minJob[0] || 0) / 100) * 100,
+      high: Math.round(Math.max(high * zip * f, minJob[1] || 0) / 100) * 100
+    };
+    return { inPerson: false, low: out.low, high: out.high, rate: Math.round(rateUsed), noEgress: out, egress: null };
+  }
+
+  // Several rooms ("add another room", 2026-10-23). rooms = list of answers
+  // without year ({ space, size, scope, finish, plumbing }); year is the
+  // home's. Each room is priced with no minimum; the total is the sum of the
+  // priced rooms, then the minimum job once. Returns null if any room doesn't
+  // price, else { inPerson, low, high, rooms: [each room's price() result] };
+  // inPerson is true only when no room has a price.
+  function priceRooms(rates, rooms, year, opts) {
+    opts = opts || {};
+    var each = [];
+    var low = 0, high = 0, priced = 0;
+    for (var i = 0; i < rooms.length; i++) {
+      var a = {};
+      for (var k in rooms[i]) a[k] = rooms[i][k];
+      a.year = year;
+      var r = price(rates, a, { zipMult: opts.zipMult, adjustmentPct: opts.adjustmentPct, noMin: true });
+      if (!r) return null;
+      each.push(r);
+      if (!r.inPerson) { low += r.low; high += r.high; priced++; }
+    }
+    if (!priced) return { inPerson: true, low: 0, high: 0, rooms: each };
+    var minJob = rates.minJob || [0, 0];
+    return { inPerson: false, low: Math.max(low, minJob[0] || 0), high: Math.max(high, minJob[1] || 0), rooms: each };
+  }
+
+  var GeneralCalc = { DEFAULT_RATES: DEFAULT_RATES, mergeRates: mergeRates, price: price, priceRooms: priceRooms };
   if (typeof module !== 'undefined' && module.exports) module.exports = GeneralCalc;
   if (typeof window !== 'undefined') window.GeneralCalc = GeneralCalc;
   if (typeof document === 'undefined') return; // node (tests): pricing only
@@ -473,6 +643,16 @@
       '.cew-notes{resize:vertical;min-height:4.5rem;}',
       '.cew-msg{font-size:.85rem;line-height:1.5;border-radius:8px;padding:.65rem .8rem;}',
       '.cew-msg.cew-error{background:#fdecea;color:#a1362a;border:1px solid #f3c6c1;}',
+      '.cew-msg.cew-ok{background:#eafaf0;color:#1f5c33;border:1px solid #b7e4c7;}',
+      // Add another room (2026-10-23).
+      '.cew-add-room-row{display:grid;gap:.4rem;margin:-.3rem 0 1.3rem;}',
+      '.cew-add-room-row .cew-hint{margin:0;text-align:center;}',
+      '.cew-rooms{display:grid;gap:.45rem;margin:0 0 .3rem;}',
+      '.cew-rooms-head{font-size:.78rem;font-weight:700;margin:0;}',
+      '.cew-room{display:flex;justify-content:space-between;align-items:flex-start;gap:.6rem;font-size:.85rem;line-height:1.45;color:#334155;background:var(--cew-tint);border:1px solid var(--cew-line);border-radius:8px;padding:.55rem .7rem;}',
+      '.cew-room-remove{font:inherit;font-size:.78rem;font-weight:700;color:#a1362a;background:none;border:none;padding:0;cursor:pointer;text-decoration:underline;flex-shrink:0;}',
+      '.cew-room-lines{margin:.5rem 0 0;padding-left:1.1rem;font-size:.88rem;line-height:1.5;color:#4a5568;}',
+      '.cew-room-lines li{margin-bottom:.35rem;}',
       // Preview mode (data-mode="preview") only.
       '.cew-preview-controls{display:grid;gap:1rem;margin:0 0 1.3rem;padding-top:1.1rem;border-top:1px solid #EAEAEA;}',
       '.cew-slider-head{display:flex;justify-content:space-between;align-items:baseline;gap:.6rem;}',
@@ -530,6 +710,7 @@
       colorAccent: root.getAttribute('data-color-accent') || '#3581ac',
       priceAdjustment: parseAdjustment(root.getAttribute('data-price-adjustment')),
       preview: String(root.getAttribute('data-mode') || '').trim().toLowerCase() === 'preview',
+      mock: String(root.getAttribute('data-mode') || '').trim().toLowerCase() === 'mock',
       tradeLabel: String(root.getAttribute('data-trade-label') || '').trim() || 'general remodel',
       ref: leadRef(),
       rates: DEFAULT_RATES,
@@ -540,8 +721,8 @@
       expectationNote: root.hasAttribute('data-expectation-note') ? root.getAttribute('data-expectation-note') : DEFAULT_EXPECTATION_NOTE
     };
     // Belt and braces: preview mode never builds the form or submit handler,
-    // and also has no webhook URL to post to.
-    if (cfg.preview) cfg.webhookUrl = '';
+    // and also has no webhook URL to post to. Mock never posts either.
+    if (cfg.preview || cfg.mock) cfg.webhookUrl = '';
     var ratesRaw = String(root.getAttribute('data-rates') || '').trim();
     if (ratesRaw) {
       try { cfg.rates = mergeRates(DEFAULT_RATES, JSON.parse(ratesRaw)); }
@@ -567,42 +748,73 @@
     // state holds each question's picked option value ('' = not picked).
     var state = {};
     QUESTIONS.forEach(function (q) { state[q.key] = ''; });
-    function optionsFor(q) { return typeof q.options === 'function' ? q.options(state.space) : q.options; }
-    function pickedOption(key) {
-      var q = QUESTIONS.filter(function (x) { return x.key === key; })[0];
-      if (!q || !state[key]) return null;
-      return optionsFor(q).filter(function (o) { return o.value === state[key]; })[0] || null;
+    // Rooms saved with "+ Add another room" (answers objects, room keys only).
+    // The room being answered now is in state; year and start are the home's.
+    var ROOM_KEYS = ['space', 'size', 'scope', 'finish', 'plumbing'];
+    var rooms = [];
+    // A question shows only when its when(space) is true (whole house swaps some).
+    function active(q, ans) { return !q.when || q.when((ans || state).space); }
+    function optionsFor(q, ans) {
+      var opts = typeof q.options === 'function' ? q.options((ans || state).space) : q.options;
+      // Whole house can't be one of several rooms.
+      if (q.key === 'space' && rooms.length) opts = opts.filter(function (o) { return !isWhole(o.value); });
+      return opts;
     }
-    // Price / quality lean from the visitor's finish pick, for the owner's
-    // alert only (never shown to the homeowner). A guess, same as bathroom.
+    function optionIn(ans, key) {
+      var q = QUESTIONS.filter(function (x) { return x.key === key; })[0];
+      if (!q || !ans[key] || !active(q, ans)) return null;
+      return optionsFor(q, ans).filter(function (o) { return o.value === ans[key]; })[0] || null;
+    }
+    function pickedOption(key) { return optionIn(state, key); }
     function startTimeframe() {
       var o = pickedOption('start');
       return o ? o.label : '';
     }
+    // Price / quality lean from the visitor's finish pick(s), for the owner's
+    // alert only (never shown to the homeowner). A guess, same as bathroom.
     function priorityLean() {
       var price = [], quality = [];
-      QUESTIONS.forEach(function (q) {
-        var o = pickedOption(q.key) || {};
-        if (o.lean === 'price') price.push(o.say);
-        if (o.lean === 'quality') quality.push(o.say);
+      rooms.concat(roomEmpty() ? [] : [state]).forEach(function (ans) {
+        QUESTIONS.forEach(function (q) {
+          var o = optionIn(ans, q.key) || {};
+          if (o.lean === 'price') price.push(o.say);
+          if (o.lean === 'quality') quality.push(o.say);
+        });
       });
       if (price.length > quality.length) return 'Leans price (' + price.join(', ') + ')';
       if (quality.length > price.length) return 'Leans quality (' + quality.join(', ') + ')';
       return 'No clear lean';
     }
-    function answersList() {
-      return QUESTIONS.filter(function (q) { return q.price !== false; }).map(function (q) {
-        var o = pickedOption(q.key) || {};
+    // The "say" list for one set of answers: every price question, or with
+    // keys, only those.
+    function sayList(ans, keys) {
+      return QUESTIONS.filter(function (q) { return q.price !== false && (!keys || keys.indexOf(q.key) >= 0); }).map(function (q) {
+        var o = optionIn(ans, q.key) || {};
         return o.say || o.label || '';
       }).filter(Boolean).join(', ');
     }
+    function answersList() { return sayList(state); }
     function zipMultiplier(zipVal) {
       var m = Number(cfg.zipMultipliers[zipVal]);
       if (!m || isNaN(m)) return 1;
       return Math.max(0.5, Math.min(2, m)); // wide safety clamp only -- see bathroom-engine.js
     }
+    // With saved rooms, the room in progress may be left blank (no space picked).
+    function roomEmpty() { return rooms.length > 0 && !state.space; }
+    function missingQuestions() {
+      return QUESTIONS.filter(function (q) {
+        if (!active(q) || pickedOption(q.key)) return false;
+        return !(roomEmpty() && ROOM_KEYS.indexOf(q.key) >= 0);
+      });
+    }
+    function roomComplete() {
+      return ROOM_KEYS.every(function (k) {
+        var q = QUESTIONS.filter(function (x) { return x.key === k; })[0];
+        return !active(q) || !!pickedOption(k);
+      });
+    }
     function answersComplete() {
-      return QUESTIONS.every(function (q) { return q.price === false || !!pickedOption(q.key); });
+      return missingQuestions().every(function (q) { return q.price === false; });
     }
 
     // Client price adjustment in percent: fixed from data-price-adjustment in
@@ -637,7 +849,23 @@
       select.disabled = !opts.length;
       if (state[q.key] && opts.some(function (o) { return o.value === state[q.key]; })) select.value = state[q.key];
       else { state[q.key] = ''; blank.selected = true; }
+      if (fields[q.key]) fields[q.key].hidden = !active(q);
     }
+    // After the space changes (or rooms are added), refresh the questions
+    // that depend on it, and show or hide the whole-house ones.
+    function refreshForSpace(resetDependent) {
+      QUESTIONS.forEach(function (d) {
+        if (typeof d.options === 'function' || d.key === 'space') {
+          if (resetDependent && d.resetOnSpace) state[d.key] = '';
+          fillSelect(d);
+        } else if (fields[d.key]) {
+          fields[d.key].hidden = !active(d);
+        }
+      });
+      if (addRoomRow) addRoomRow.hidden = isWhole(state.space);
+    }
+    var fields = {};
+    var addRoomRow = null;
     QUESTIONS.forEach(function (q) {
       var select = el('select');
       selects[q.key] = select;
@@ -646,22 +874,82 @@
         state[q.key] = e.target.value;
         select.classList.remove('cew-err');
         if (q.key !== 'space') return;
-        QUESTIONS.forEach(function (d) {
-          if (typeof d.options !== 'function') return;
-          if (d.resetOnSpace) state[d.key] = '';
-          fillSelect(d);
-        });
+        refreshForSpace(true);
       });
-      qgrid.appendChild(el('div', { class: q.wide ? 'cew-field cew-wide' : 'cew-field' }, [
+      fields[q.key] = el('div', { class: q.wide ? 'cew-field cew-wide' : 'cew-field' }, [
         el('label', { style: 'color:' + cfg.colorDark, html: q.label }),
         select
-      ]));
+      ]);
+      fields[q.key].hidden = !active(q);
+      qgrid.appendChild(fields[q.key]);
     });
+
+    // "+ Add another room" (not for whole house): saves the room in progress
+    // and clears space, size, scope and plumbing for the next one. The saved
+    // rooms show above the questions, each with a Remove link.
+    var roomList = el('div', { class: 'cew-rooms' }); roomList.hidden = true;
+    var roomMsg = el('div', { class: 'cew-msg' }); roomMsg.hidden = true;
+    var addRoomBtn = el('button', {
+      type: 'button', class: 'cew-cta-outline cew-add-room',
+      style: 'color:' + cfg.colorPrimary + ';border-color:' + cfg.colorPrimary,
+      html: '+ Add another room'
+    });
+    var roomHint = el('p', { class: 'cew-hint', html: 'Pricing more than one room? Add each one, and you\u2019ll see every room and the total.' });
+    addRoomRow = el('div', { class: 'cew-add-room-row' }, [addRoomBtn, roomHint, roomMsg]);
+    function renderRooms() {
+      roomList.innerHTML = '';
+      roomList.hidden = !rooms.length;
+      roomHint.innerHTML = 'Pricing more than one room? Add each one, and you\u2019ll see every room and the total.';
+      if (!rooms.length) return;
+      roomList.appendChild(el('p', { class: 'cew-rooms-head', style: 'color:' + cfg.colorDark, html: 'Rooms added so far' }));
+      rooms.forEach(function (r, i) {
+        var remove = el('button', { type: 'button', class: 'cew-room-remove', html: 'Remove' });
+        remove.addEventListener('click', function () {
+          rooms.splice(i, 1);
+          renderRooms();
+          refreshForSpace(false);
+          onRoomsChanged();
+        });
+        var text = el('span', {});
+        text.textContent = 'Room ' + (i + 1) + ': ' + sayList(r, ROOM_KEYS);
+        roomList.appendChild(el('div', { class: 'cew-room' }, [text, remove]));
+      });
+      roomHint.innerHTML = 'Answer the next room above, or leave it blank if you\u2019re done.';
+    }
+    var onRoomsChanged = function () {};
+    addRoomBtn.addEventListener('click', function () {
+      var missing = ROOM_KEYS.filter(function (k) {
+        var q = QUESTIONS.filter(function (x) { return x.key === k; })[0];
+        return active(q) && !pickedOption(k);
+      });
+      ROOM_KEYS.forEach(function (k) { selects[k].classList.toggle('cew-err', missing.indexOf(k) >= 0); });
+      if (missing.length) {
+        roomMsg.hidden = false; roomMsg.className = 'cew-msg cew-error';
+        roomMsg.textContent = 'Please finish this room\u2019s answers first.';
+        return;
+      }
+      if (rooms.length >= 8) {
+        roomMsg.hidden = false; roomMsg.className = 'cew-msg cew-error';
+        roomMsg.textContent = 'That\u2019s the most rooms this calculator adds up. For more, ask about an in-person estimate.';
+        return;
+      }
+      roomMsg.hidden = true;
+      var saved = {};
+      ROOM_KEYS.forEach(function (k) { saved[k] = state[k]; });
+      rooms.push(saved);
+      ['space', 'size', 'scope', 'plumbing'].forEach(function (k) { state[k] = ''; });
+      renderRooms();
+      refreshForSpace(false);
+      onRoomsChanged();
+      try { roomList.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
+    });
+    var questionsBlock = el('div', {}, [roomList, qgrid, addRoomRow]);
 
     // Price display, shared by normal mode (shown after submit) and preview
     // mode (shown live).
     var bandLabel = el('div', { class: 'cew-band-label', style: 'color:' + cfg.colorAccent, html: 'Your price range' });
     var priceRange = el('p', { class: 'cew-price', style: 'color:' + cfg.colorDark, html: '$0 &ndash; $0' });
+    var roomBreakdown = el('ul', { class: 'cew-room-lines' }); roomBreakdown.hidden = true;
     var answersLine = el('p', { class: 'cew-answers' }); answersLine.hidden = true;
     var zipNote = el('p', { class: 'cew-blurb', style: 'margin-top:.2rem' }); zipNote.hidden = true;
     var tierHeading = el('p', { class: 'cew-tier-heading', style: 'color:' + cfg.colorDark });
@@ -678,24 +966,53 @@
     // exactly what was shown.
     function showPrice(zipVal) {
       var mult = zipMultiplier(zipVal);
-      var r = price(cfg.rates, {
+      var opts = { zipMult: mult, adjustmentPct: adjustmentPct };
+      // Several rooms: the saved ones plus the one in progress (if started).
+      var multi = rooms.length > 0;
+      var list = multi ? rooms.concat(roomEmpty() ? [] : [ROOM_KEYS.reduce(function (o, k) { o[k] = state[k]; return o; }, {})]) : null;
+      var r = multi ? priceRooms(cfg.rates, list, state.year, opts) : price(cfg.rates, {
         space: state.space, size: state.size, scope: state.scope,
-        finish: state.finish, plumbing: state.plumbing, year: state.year
-      }, { zipMult: mult, adjustmentPct: adjustmentPct });
+        finish: state.finish, plumbing: state.plumbing, year: state.year,
+        kitchen: state.kitchen, fullBaths: state.fullBaths, halfBaths: state.halfBaths
+      }, opts);
       if (!r) console.error('general-engine: no price for these answers; check data-rates', state);
       var inPerson = !!(r && r.inPerson);
       var low = r && !inPerson ? r.low : 0;
       var high = r && !inPerson ? r.high : 0;
+      function range(lo, hi) { return fmt(lo) + ' to ' + fmt(hi); }
 
       if (inPerson) {
         bandLabel.textContent = 'Your next step';
         priceRange.textContent = 'In-person estimate';
       } else {
-        bandLabel.textContent = 'Your price range';
+        bandLabel.textContent = multi ? 'Your price range, ' + list.length + ' rooms' : 'Your price range';
         priceRange.innerHTML = '<span class="cew-nw">' + fmt(low) + '</span> &ndash; <span class="cew-nw">' + fmt(high) + '</span>';
       }
-      var answers = answersList();
-      var answersSummary = answers ? 'Based on: ' + answers + '.' : '';
+      var answers, answersSummary;
+      roomBreakdown.innerHTML = '';
+      roomBreakdown.hidden = !multi;
+      if (multi) {
+        // On screen: one line per room with its range; the home's age under them.
+        // Sent: the same in one sentence (answers_summary).
+        var parts = [];
+        list.forEach(function (room, i) {
+          var each = r && r.rooms ? r.rooms[i] : null;
+          var says = sayList(room, ROOM_KEYS);
+          var cost = !each ? '' : each.inPerson ? 'in-person estimate, not in the total' : range(each.low, each.high);
+          parts.push('Room ' + (i + 1) + ', ' + says + (cost ? ' (' + cost + ')' : ''));
+          var li = el('li', {});
+          li.appendChild(el('strong', { style: 'color:' + cfg.colorDark, html: 'Room ' + (i + 1) + ':' }));
+          li.appendChild(document.createTextNode(' ' + says + '. '));
+          var c = el('span', { class: 'cew-nw' }); c.textContent = cost.charAt(0).toUpperCase() + cost.slice(1); li.appendChild(c);
+          roomBreakdown.appendChild(li);
+        });
+        var home = sayList(state, ['year']);
+        answers = home;
+        answersSummary = 'Based on: ' + parts.join('; ') + (home ? '; ' + home : '') + '.';
+      } else {
+        answers = answersList();
+        answersSummary = answers ? 'Based on: ' + answers + '.' : '';
+      }
       answersLine.innerHTML = '';
       if (answers) {
         answersLine.appendChild(el('strong', { style: 'color:' + cfg.colorDark, html: 'Based on:' }));
@@ -710,7 +1027,10 @@
       }
       var sp = spaceInfo(state.space) || { noun: 'space' };
       function fill(t) { return String(t || '').split('{space}').join(sp.noun); }
-      var copy = cfg.scopeCopy[state.scope] || { heading: '', intro: '', bullets: [] };
+      var copyKey = multi ? (inPerson ? (list.filter(function (x) { return IN_PERSON[x.scope]; })[0] || {}).scope : 'several')
+        : isWhole(state.space) ? (r && r.copy) || 'whole' + String(state.scope).charAt(0).toUpperCase() + String(state.scope).slice(1)
+        : state.scope;
+      var copy = cfg.scopeCopy[copyKey] || { heading: '', intro: '', bullets: [] };
       tierHeading.textContent = fill(copy.heading);
       tierIntro.textContent = fill(copy.intro);
       tierBullets.innerHTML = '';
@@ -719,17 +1039,24 @@
 
       notes.innerHTML = '';
       function note(text) { var p = el('p', { class: 'cew-note' }); p.textContent = text; notes.appendChild(p); }
-      if (r && r.egress) {
+      var egress = multi ? ((r && r.rooms) || []).filter(function (x) { return x.egress; })[0] : r;
+      if (egress && egress.egress) {
         note('If the rooms include a bedroom, code requires an egress window (an escape window) in it. This range includes one, at about ' +
-          fmt(r.egress.low) + ' to ' + fmt(r.egress.high) + ' per bedroom.');
+          fmt(egress.egress.low) + ' to ' + fmt(egress.egress.high) + ' per bedroom.');
       }
-      if (state.space === 'closet') note(NOTE_CLOSET);
+      if (multi && !inPerson && list.some(function (x) { return IN_PERSON[x.scope]; })) {
+        note('A room marked in-person estimate changes the structure of the house, so it isn\u2019t in this total. The in-person estimate prices it.');
+      }
+      if (multi ? list.some(function (x) { return x.space === 'closet'; }) : state.space === 'closet') note(NOTE_CLOSET);
       if (state.year === 'y1970' || state.year === 'pre1970') note(NOTE_OLDER_HOME);
 
-      return { mult: mult, inPerson: inPerson, rate: r && !inPerson ? r.rate : '', low: low, high: high, answersSummary: answersSummary };
+      return {
+        mult: mult, inPerson: inPerson, rate: r && !inPerson && !multi ? r.rate : '', low: low, high: high,
+        answersSummary: answersSummary, rooms: multi ? list : null
+      };
     }
 
-    var resultTop = function () { return el('div', {}, [bandLabel, priceRange, answersLine, zipNote, tierHeading, tierIntro, tierBullets, notes, expectNote]); };
+    var resultTop = function () { return el('div', {}, [bandLabel, priceRange, roomBreakdown, answersLine, zipNote, tierHeading, tierIntro, tierBullets, notes, expectNote]); };
 
     if (cfg.preview) {
       // Contractor-only preview: no contact form, no consent box, no submit
@@ -787,7 +1114,8 @@
       // case a ZIP was typed before it arrived.
       zipTableLoaded.then(renderPreview);
 
-      card.appendChild(qgrid);
+      onRoomsChanged = renderPreview;
+      card.appendChild(questionsBlock);
       card.appendChild(controls);
       card.appendChild(emptyMsg);
       card.appendChild(previewResult);
@@ -841,7 +1169,7 @@
     });
 
     var form = el('div', {}, [
-      qgrid,
+      questionsBlock,
       el('p', { class: 'cew-section-label', style: 'color:' + cfg.colorDark, html: 'Your Info' }),
       el('div', { class: 'cew-lead-fields' }, [
         el('div', { class: 'cew-field-wrap' }, [el('label', { style: 'color:' + cfg.colorDark, html: 'First Name *' }), firstName]),
@@ -897,8 +1225,8 @@
       zip.classList.toggle('cew-err', !zipOk);
       phoneInput.classList.toggle('cew-err', wantsCall && !phoneVal);
       consentRow.classList.toggle('cew-err', !consentBox.checked);
-      var unanswered = QUESTIONS.filter(function (q) { return !pickedOption(q.key); });
-      QUESTIONS.forEach(function (q) { selects[q.key].classList.toggle('cew-err', !pickedOption(q.key)); });
+      var unanswered = missingQuestions();
+      QUESTIONS.forEach(function (q) { selects[q.key].classList.toggle('cew-err', unanswered.indexOf(q) >= 0); });
       if (unanswered.length) {
         setFormMsg('Please answer every question above so we can price your project.');
         return;
@@ -944,6 +1272,21 @@
         space: spaceOpt.label || '',
         scope: scopeOpt.label || ''
       };
+      if (shown.rooms) {
+        // Several rooms: same keys, the total, each room's labels.
+        payload.tier_label = 'Several rooms (' + shown.rooms.length + ')';
+        payload.space = shown.rooms.map(function (x) { return (optionIn(x, 'space') || {}).label || ''; }).join(' + ');
+        payload.scope = shown.rooms.map(function (x) { return (optionIn(x, 'scope') || {}).label || ''; }).join(' + ');
+        payload.room_count = shown.rooms.length;
+      }
+
+      if (cfg.mock) {
+        root.setAttribute('data-last-payload', JSON.stringify(payload));
+        resultMsg.hidden = false;
+        resultMsg.className = 'cew-msg cew-ok';
+        resultMsg.textContent = 'Demo: nothing was sent. On a remodeler\u2019s real site this saves the lead and emails the homeowner a copy.';
+        return;
+      }
 
       if (cfg.webhookUrl) {
         fetch(cfg.webhookUrl, {
