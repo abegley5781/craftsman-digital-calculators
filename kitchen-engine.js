@@ -115,6 +115,11 @@
   ];
 
   function fmt(n) { return '$' + Math.round(n).toLocaleString('en-US'); }
+  // A 10-digit phone number shown as (970) 555-0100; anything else as typed. Screen only.
+  function fmtPhone(v) {
+    var d = String(v || '').replace(/\D/g, '');
+    return d.length === 10 ? '(' + d.slice(0, 3) + ') ' + d.slice(3, 6) + '-' + d.slice(6) : v;
+  }
 
   // data-price-adjustment -> a number of percent, clamped to -50..50.
   // Missing, empty, or non-numeric (e.g. an unfilled GHL custom value) is 0.
@@ -592,9 +597,13 @@
         callbackMsg.hidden = false;
         callbackMsg.textContent = cfg.bookingClosed
           ? 'Thanks, ' + firstVal + '. We\u2019re not taking on new projects right now, so we\u2019ve added you to our wait list. We\u2019ll call you as soon as we\u2019re able.'
-          : 'Thanks, ' + firstVal + '! We\u2019ll call you ' + (cfg.responseTime || 'soon') + ' at ' + phoneVal + ' to talk through your project.';
+          : 'Thanks, ' + firstVal + '! We\u2019ll call you ' + (cfg.responseTime || 'soon') + ' at ' + fmtPhone(phoneVal) + ' to talk through your project.';
       } else {
-        callbackMsg.hidden = true;
+        // No call asked for: name the next step, or the wait list when booking is closed (D12, 2026-10-24).
+        callbackMsg.hidden = false;
+        callbackMsg.textContent = cfg.bookingClosed
+          ? 'We\u2019re not taking on new projects right now, so we\u2019ve added you to our wait list. We\u2019ll reach out as soon as we\u2019re able.'
+          : 'Want an exact price? The next step is an in-person estimate. Call us to set it up.';
       }
       nextMsg.textContent = 'Your price range and answers are on their way to ' + emailVal + '. If you don\u2019t see the email in a few minutes, check your Promotions or spam folder.';
       callNowLink.hidden = cfg.bookingClosed;
