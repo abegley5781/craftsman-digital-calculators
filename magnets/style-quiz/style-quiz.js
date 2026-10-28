@@ -279,7 +279,7 @@
     '.csq-scale i{height:10px;border-radius:3px;background:#d3dee7;}',
     '.csq-scale i.on{background:var(--csq-p);}',
     '.csq-scale-l{display:flex;justify-content:space-between;font-size:.82rem;color:var(--csq-muted);}',
-    '.csq-picks{margin:0;padding:0;list-style:none;display:grid;gap:6px;}',
+    '.csq ul.csq-picks{margin:0;padding:0;list-style:none;display:grid;gap:6px;}',
     '.csq-picks li{display:grid;grid-template-columns:minmax(0,8.5em) 1fr;gap:10px;}',
     '.csq-picks b{color:var(--csq-d);}',
     '.csq-ud{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,15rem),1fr));gap:12px;}',
