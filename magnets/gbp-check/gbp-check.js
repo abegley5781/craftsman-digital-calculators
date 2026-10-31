@@ -452,8 +452,13 @@
       // Review counts vs the top 3, one scale for all bars.
       var top = search.top || [];
       if (top.length) {
-        var rowsData = top.map(function (t, i) { return { name: (i + 1) + '. ' + t.name, n: t.reviews || 0, you: false }; });
-        rowsData.push({ name: 'You' + (search.rank ? ' (#' + search.rank + ')' : ''), n: you.reviews || 0, you: true });
+        // Already in the top 3: highlight that row instead of adding a second "You" row.
+        var inTop = search.rank && search.rank <= top.length;
+        var rowsData = top.map(function (t, i) {
+          var isYou = inTop && i === search.rank - 1;
+          return { name: (i + 1) + '. ' + (isYou ? 'You' : t.name), n: t.reviews || 0, you: isYou };
+        });
+        if (!inTop) rowsData.push({ name: 'You' + (search.rank ? ' (#' + search.rank + ')' : ''), n: you.reviews || 0, you: true });
         var max = Math.max.apply(null, rowsData.map(function (r) { return r.n; }).concat([1]));
         results.appendChild(el('div', { style: 'display:grid;gap:10px' }, [
           el('h4', { text: 'Reviews: you vs. the top ' + top.length }),
