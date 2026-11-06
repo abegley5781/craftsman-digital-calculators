@@ -85,16 +85,27 @@
   // ---- Scoring: CD's own checklist, 100 points. Pure function. ----
   // Reviews are scored against the third-place count for the same search, so
   // the bar is set by real local competitors, not by an invented average.
-  function scoreProfile(you, top) {
+  // Already in the top 3 (rank given): the bar is the most-reviewed rival in
+  // that top 3 instead, so a leader with fewer reviews than #2 still sees the
+  // gap (Andrew, 2026-11-06: 'compare to top rival').
+  function scoreProfile(you, top, rank) {
     var rows = [];
     var third = top.length ? top[top.length - 1].reviews || 0 : 0;
-    var reviewRatio = third > 0 ? Math.min(1, (you.reviews || 0) / third) : ((you.reviews || 0) > 0 ? 1 : 0);
+    var inTop = !!rank && rank <= top.length;
+    var bar = third;
+    if (inTop) {
+      bar = 0;
+      top.forEach(function (t, i) { if (i !== rank - 1) bar = Math.max(bar, t.reviews || 0); });
+    }
+    var reviewRatio = bar > 0 ? Math.min(1, (you.reviews || 0) / bar) : ((you.reviews || 0) > 0 ? 1 : 0);
     var topCounts = top.map(function (t) { return fmtInt(t.reviews || 0); });
     rows.push({
       key: 'reviews', label: 'Reviews', max: 25, pts: Math.round(25 * reviewRatio),
       found: fmtInt(you.reviews || 0) + ' review' + ((you.reviews === 1) ? '' : 's'),
       // Fix lines only appear in the emailed report, which GHL stores, so no Google numbers here.
-      fix: top.length
+      fix: inTop
+        ? 'Another business in the top 3 for this search has more reviews than you. Ask every customer for a review the week you finish their job; a text with the review link works best.'
+        : top.length
         ? 'You have fewer reviews than the businesses ranking above you for this search. Ask every customer for a review the week you finish their job; a text with the review link works best.'
         : 'Ask every customer for a review the week you finish their job.',
       ok: reviewRatio >= 1
@@ -400,7 +411,7 @@
       tradeSel.value = root.getAttribute('data-autorun');
       townInput.value = 'Durango, CO';
       var d0 = mockCheck(picked, tradeSel.value);
-      last = { you: d0.you, search: d0.search, scored: scoreProfile(d0.you, d0.search.top) };
+      last = { you: d0.you, search: d0.search, scored: scoreProfile(d0.you, d0.search.top, d0.search.rank) };
       setTimeout(function () { renderResults(true); }, 0);
     }
 
@@ -425,7 +436,7 @@
         checkBtn.disabled = false; checkBtn.textContent = 'Check my Google profile';
         session = newSession(); // a session ends with the details call
         if (!d || d.error || !d.you) { showMsg((d && d.error) || 'The check did not finish. Try again in a minute.'); return; }
-        last = { you: d.you, search: d.search, scored: scoreProfile(d.you, d.search.top || []) };
+        last = { you: d.you, search: d.search, scored: scoreProfile(d.you, d.search.top || [], d.search.rank) };
         renderResults();
       }).catch(function () {
         checkBtn.disabled = false; checkBtn.textContent = 'Check my Google profile';
