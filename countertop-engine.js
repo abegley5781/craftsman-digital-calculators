@@ -754,6 +754,9 @@
       try { if (card.getBoundingClientRect().top < 0) card.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
 
       var lv = rates.levels[p.level] || {};
+      // A ref may appear after start-up (the site head code puts a saved tag back
+      // in the address bar), so look again at submit if there was none at load.
+      if (!cfg.ref) cfg.ref = leadRef();
       var payload = {
         first_name: firstVal, last_name: lastVal, email: emailVal, phone: phoneVal,
         trade_config: 'countertop', score: '', estimate_low: p.low, estimate_high: p.high,

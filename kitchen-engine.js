@@ -612,6 +612,9 @@
       // The form is long on a phone; once it hides, bring the result into view.
       try { if (card.getBoundingClientRect().top < 0) card.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
 
+      // A ref may appear after start-up (the site head code puts a saved tag back
+      // in the address bar), so look again at submit if there was none at load.
+      if (!cfg.ref) cfg.ref = leadRef();
       var payload = {
         first_name: firstVal, last_name: lastVal, email: emailVal, phone: phoneVal,
         trade_config: 'kitchen', score: score, estimate_low: shown.low, estimate_high: shown.high,

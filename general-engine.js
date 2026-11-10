@@ -1260,6 +1260,9 @@
 
       var scopeOpt = pickedOption('scope') || {};
       var spaceOpt = pickedOption('space') || {};
+      // A ref may appear after start-up (the site head code puts a saved tag back
+      // in the address bar), so look again at submit if there was none at load.
+      if (!cfg.ref) cfg.ref = leadRef();
       var payload = {
         first_name: firstVal, last_name: lastVal, email: emailVal, phone: phoneVal,
         trade_config: cfg.tradeLabel, score: shown.rate, estimate_low: shown.low, estimate_high: shown.high,
